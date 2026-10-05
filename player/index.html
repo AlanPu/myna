@@ -140,6 +140,13 @@
   .cue .w.late{color:var(--warn)}
   .cue .w.verdict{font-weight:700}
   .scorenote{color:var(--dim);font-size:12px;margin-top:8px}
+  /* playback of the take, and the A/B against the original */
+  .listen{display:flex;gap:9px;align-items:center;flex-wrap:wrap;margin-top:11px;
+          padding-top:11px;border-top:1px solid var(--line)}
+  .listen[hidden]{display:none!important}
+  .ghost.sm{font-size:12.5px;padding:5px 11px}
+  .ghost.sm.on{border-color:var(--accent);color:var(--accent)}
+  .listhint{font-size:11.5px;color:var(--dim)}
 </style>
 </head>
 <body>
@@ -204,6 +211,11 @@
         <span class="big" id="sBig">--</span>
         <span class="spnote" id="sLabel">跟读相似度</span>
         <div class="metrics" id="sMetrics"></div>
+      </div>
+      <div class="listen" id="listen" hidden>
+        <button class="ghost sm" id="playMine">▶️ 听我的</button>
+        <button class="ghost sm" id="playAb">👂 原声 / 我的</button>
+        <span class="listhint" id="listenHint"></span>
       </div>
       <div class="why" id="sWhy"></div>
       <div class="scorenote" id="sNote"></div>
@@ -490,6 +502,9 @@ function build() {
     if (VERDICT && VERDICT.index !== +r.dataset.i) {
       clearVerdicts();
       scored.hidden = true;
+      // The A/B would otherwise keep playing a take from a different line, and
+      // its timer would fire against a playhead the user has since moved.
+      stopListen();
     }
     seekOrig(c.start + 0.01);
     if (typeof ensureRunning === 'function') ensureRunning();
@@ -822,13 +837,108 @@ function micFinish() {
   if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
   const blob = new Blob(micChunks, { type: (micRec && micRec.mimeType) || 'audio/webm' });
   setMicState('scoring');
+  // Hold on to the audio. A score says how close the reading was; hearing it
+  // back is what actually tells the learner WHICH part was off, and the take
+  // exists nowhere else once this Blob is dropped.
+  keepTake(blob, micIndex);
   micSend(blob, micIndex, micT0);
 }
 
+// ---- listen back ---------------------------------------------------------
+// One object URL per take, revoked when the next recording replaces it. The
+// take is a few hundred KB and the page lives for a whole session, so leaking
+// them would add up, but keeping several lets a learner flip back to the
+// previous attempt after re-reading the same line.
+const TAKES = [];
+let takeUrl = null, takeEl = null, abTimer = null, abMode = null, takeIndex = -1;
+const AB_GAP = 350;   // silence between the original and your reading
+
+function keepTake(blob, index) {
+  if (takeUrl) URL.revokeObjectURL(takeUrl);
+  takeUrl = URL.createObjectURL(blob);
+  // The sentence the take belongs to, kept beside the audio. The verdict is
+  // cleared when the user moves to another line, but the recording is still
+  // theirs to hear, and the A/B needs to know which line to play as the
+  // original.
+  takeIndex = index != null ? index : micIndex;
+  TAKES.unshift(takeUrl);
+  for (const u of TAKES.slice(3)) URL.revokeObjectURL(u);
+  TAKES.length = Math.min(TAKES.length, 3);
+  listenHint('原声和你的录音');
+}
+
+function listenHint(txt) { document.getElementById('listenHint').textContent = txt || ''; }
+
+function stopListen() {
+  clearTimeout(abTimer); abTimer = null;
+  if (takeEl) { takeEl.pause(); takeEl = null; }
+  document.getElementById('playMine').classList.remove('on');
+  document.getElementById('playAb').classList.remove('on');
+  if (abMode) listenHint('原声和你的录音');
+  abMode = null;
+  // Read by the e2e check: a playback button that exists but never starts is
+  // the failure this feature is most likely to have.
+  window.__abMode = null;
+}
+
+function playMine() {
+  if (!takeUrl) return;
+  if (takeEl) { stopListen(); return; }   // second press = stop
+  if (!A.paused) A.pause();
+  takeEl = new Audio(takeUrl);
+  takeEl.onended = stopListen;
+  takeEl.play().catch(() => { flash('这段录音放不出来'); stopListen(); });
+  window.__takeEl = takeEl;
+  document.getElementById('playMine').classList.add('on');
+  listenHint('正在播放你的录音');
+}
+
+// The original and the take cannot sound at once — overlapping them produces a
+// sound that is in neither, and the ear cannot attribute what it hears to
+// either source. So they take turns, original first: the learner hears the
+// target, then immediately their own version of the same stretch, and the
+// comparison happens in one short passage rather than across two remembered
+// ones.
+function playAb() {
+  if (!takeUrl) return;
+  if (abMode) { stopListen(); return; }
+  const i = takeIndex >= 0 ? takeIndex
+    : (VERDICT && VERDICT.index >= 0 ? VERDICT.index : micIndex);
+  if (i < 0 || !M || !M.captions[i]) { flash('先选一句'); return; }
+  if (loop) stopLoop();
+  A.pause();
+  abMode = 'orig';
+  window.__abMode = 'orig';
+  document.getElementById('playAb').classList.add('on');
+
+  const sp = loopSpan(i);
+  seekOrig(sp.a + 0.01);
+  if (typeof ensureRunning === 'function') ensureRunning();
+  A.play().catch(() => {});
+
+  const wait = Math.max(300, (sp.b - sp.a) * 1000);
+  abTimer = setTimeout(() => {
+    A.pause();
+    listenHint('现在是你的');
+    window.__abMode = 'mine';
+    takeEl = new Audio(takeUrl);
+    takeEl.onended = () => { listenHint('原声 → 你的,再按一次重听'); stopAbMode(); };
+    takeEl.play().catch(() => stopListen());
+    window.__takeEl = takeEl;
+  }, wait + AB_GAP);
+}
+
+function stopAbMode() {
+  abMode = null;
+  document.getElementById('playAb').classList.remove('on');
+}
+
+document.getElementById('playMine').onclick = playMine;
+document.getElementById('playAb').onclick = playAb;
+
 async function micSend(blob, index, t0) {
   try {
-    if (blob.size < 1200) { flash('录音太短,没有听到声音'); setMicState('idle'); return; }
-    const buf = await blob.arrayBuffer();
+    if (blob.size < 1200) { flash('录音太短,没有听到声音'); setMicState('idle'); return; }    const buf = await blob.arrayBuffer();
     let bin = '';
     const bytes = new Uint8Array(buf);
     // Chunked so a large recording does not blow the argument limit.
@@ -869,6 +979,10 @@ async function micSend(blob, index, t0) {
 
 function paintScore(r) {
   scored.hidden = false;
+  // The take is playable whether or not it could be scored. "Cannot align" is
+  // exactly when a learner most wants to hear what they actually said — the
+  // score is the least useful thing in that moment.
+  document.getElementById('listen').hidden = !takeUrl;
   if (!r.ok) {
     document.getElementById('sBig').textContent = '--';
     document.getElementById('sMetrics').innerHTML = '';

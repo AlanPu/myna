@@ -91,6 +91,103 @@ def fake_mic_wav(index: int) -> str | None:
     return out
 
 
+def check_playback(page, errors: list[str]) -> bool:
+    """The take must be audible, and the A/B must reach the second source.
+
+    Asserting that a button exists and has a listener proves nothing: the
+    failure mode here is a Blob URL that does not play, a timer that never
+    fires, or an element constructed but never started. So this watches the
+    media elements themselves — `currentTime` advancing is the only proof
+    that sound is coming out.
+    """
+    ok = True
+    if page.is_hidden("#listen"):
+        print("\nFAIL: the playback controls are hidden after a scored take")
+        return False
+    print("playback     : controls visible")
+
+    # Track every media element the page creates, so an element built and
+    # immediately dropped cannot hide behind a later reference to `A`.
+    page.evaluate("""() => {
+      window.__played = [];
+      const orig = window.HTMLMediaElement;
+      const desc = Object.getOwnPropertyDescriptor(
+        orig.prototype, 'play');
+      orig.prototype.play = function () {
+        const el = this;
+        window.__played.push({
+          src: (el.currentSrc || el.src || '').slice(0, 24),
+          at: performance.now(),
+        });
+        return desc.value.apply(this, arguments);
+      };
+    }""")
+
+    # 1. the take alone
+    page.click("#playMine")
+    page.wait_for_timeout(1200)
+    mine = page.evaluate("""() => {
+      const el = window.__takeEl;
+      return {cur: el ? el.currentTime : -1, paused: el ? el.paused : null,
+              playing: el ? !el.paused && el.currentTime > 0 : false,
+              hint: document.getElementById('listenHint').textContent};
+    }""")
+    print(f"play mine    : currentTime={mine['cur']:.2f}s "
+          f"paused={mine['paused']} hint={mine['hint']!r}")
+    if not mine["playing"] or mine["cur"] <= 0:
+        print("\nFAIL: 听我的 started no audio — the take does not play back")
+        ok = False
+    page.click("#playMine")   # stop
+    page.wait_for_timeout(300)
+
+    # 2. the A/B: the original must start, then the take
+    page.evaluate("() => { window.__played.length = 0; window.__takeEl = null; }")
+    page.click("#playAb")
+    page.wait_for_timeout(600)
+    first = page.evaluate("""() => ({
+      ab: window.__abMode || null,
+      orig: (() => { const a = document.getElementById('a');
+                     return a ? {t: a.currentTime, p: a.paused} : null; })(),
+      hint: document.getElementById('listenHint').textContent})""")
+    print(f"ab phase 1   : mode={first['ab']!r} orig_t={first['orig'] and round(first['orig']['t'],2)} "
+          f"orig_paused={first['orig'] and first['orig']['p']}")
+    # Long enough for the original to finish and the take to take over.
+    try:
+        page.wait_for_function(
+            "() => window.__abMode === 'mine'", timeout=30000)
+    except Exception:
+        print("\nFAIL: the A/B never switched to the take — the original "
+              "played and your recording did not follow it")
+        page.evaluate("() => window.__abMode && stopListen()")
+        return False
+    page.wait_for_timeout(900)
+    second = page.evaluate("""() => {
+      const el = window.__takeEl;
+      return {n: window.__played.length,
+              cur: el ? el.currentTime : -1, paused: el ? el.paused : null,
+              hint: document.getElementById('listenHint').textContent};
+    }""")
+    print(f"ab phase 2   : starts={second['n']} currentTime={second['cur']:.2f}s "
+          f"paused={second['paused']} hint={second['hint']!r}")
+    if second["n"] < 2:
+        print("\nFAIL: the A/B started only one source — expected the original "
+              "then the take")
+        ok = False
+    elif not (second["cur"] > 0):
+        print("\nFAIL: the take was constructed but never played in the A/B")
+        ok = False
+    page.click("#playAb")   # stop
+    page.wait_for_timeout(300)
+    stopped = page.evaluate(
+        "() => ({ab: window.__abMode, el: window.__takeEl && window.__takeEl.paused})")
+    print(f"ab stopped   : mode={stopped['ab']!r} take_paused={stopped['el']}")
+    if stopped["ab"] is not None:
+        print("\nFAIL: the A/B could not be stopped — a second press should "
+              "silence it")
+        ok = False
+    return ok
+
+
 def main() -> int:
     wav = fake_mic_wav(TARGET)
     if not wav:
@@ -276,6 +373,13 @@ def main() -> int:
             if "offline" in taken:
                 print(f"offline       : {taken['offline']}")
 
+            # ---- playback of the take ------------------------------------
+            # A score says how close the reading was; hearing it is what says
+            # WHICH part was off. So the take has to be playable, and the A/B
+            # has to actually reach the second source. This runs before the
+            # browser closes.
+            playback_ok = check_playback(page, errors)
+
             browser.close()
 
             ok = True
@@ -288,6 +392,8 @@ def main() -> int:
             if tally.get("plain", 0) == words:
                 print("\nFAIL: per-word verdicts never reached the caption spans")
                 ok = False
+            ok = playback_ok and ok
+
             real = [e for e in errors if "favicon" not in e.lower()]
             if real:
                 print(f"\nFAIL: page errors: {real}")
