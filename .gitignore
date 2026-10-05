@@ -1,0 +1,23 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+.uv-cache/
+
+# Downloaded source audio and rendered player assets.
+# Everything here is produced by rebuild.py; committing 60MB+ of derived
+# media would make the history unusable for no benefit.
+audio2/
+player/*.m4a
+player/*.webm
+player/slow/
+player/shots/
+
+# Generated data is kept, because the four verify_*.py checks read it and a
+# reviewer can rerun check.py without re-downloading anything. These are
+# small (a few hundred KB) and diff meaningfully.
+!player/player_captions.json
+!player/energy.json
+
+# macOS
+.DS_Store

@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Myna · 原声慢速跟读</title>
+<style>
+  :root{
+    --bg:#0d1017; --panel:#151a24; --line:#242c3a;
+    --fg:#e8edf5; --dim:#8b98ad; --accent:#5eead4; --warn:#fbbf24;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--fg);
+       font:15px/1.55 -apple-system,BlinkMacSystemFont,"SF NS Text","Helvetica Neue",Arial,sans-serif;
+       -webkit-font-smoothing:antialiased}
+  .wrap{max-width:940px;margin:0 auto;padding:32px 20px 72px}
+  header{margin-bottom:24px}
+  h1{font-size:21px;margin:0 0 6px;letter-spacing:-.01em}
+  .sub{color:var(--dim);font-size:13px}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:14px;
+        padding:18px;margin-bottom:16px}
+  .stage{position:relative;background:#000;border-radius:10px;overflow:hidden;
+         max-width:420px;margin:0 auto 18px}
+  .stage video{width:100%;height:100%;display:block;object-fit:contain}
+  .cue{position:relative;left:0;right:0;padding:16px 14px 14px;
+       background:linear-gradient(transparent,rgba(0,0,0,.86));
+       font-size:17px;line-height:1.4;text-align:center;font-weight:600;
+       letter-spacing:.005em;min-height:66px;
+       display:block}
+  /* NB: do not make .cue a flex container — that discards the whitespace
+     text nodes between word spans and renders "reallyreallylongtrunks". */
+  .cue .w{color:#c3ccdb;transition:color .12s}
+  .cue .w.on{color:#fff;text-shadow:0 0 14px rgba(94,234,212,.55)}
+  .controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
+  button{background:var(--accent);color:#05221e;border:0;border-radius:9px;
+         padding:9px 17px;font-size:14px;font-weight:650;cursor:pointer}
+  button.ghost{background:#222b3a;color:var(--fg);font-weight:500}
+  button:disabled{opacity:.45;cursor:default}
+  .scrub{flex:1;min-width:200px;display:flex;align-items:center;gap:10px}
+  .track{position:relative;flex:1;height:34px;background:#0a0d13;
+         border-radius:7px;overflow:hidden;cursor:pointer;border:1px solid var(--line)}
+  .seg{position:absolute;top:0;bottom:0;background:#243044;opacity:.85}
+  .gap{position:absolute;top:0;bottom:0;background:repeating-linear-gradient(
+       45deg,transparent,transparent 3px,rgba(251,191,36,.13) 3px,rgba(251,191,36,.13) 6px)}
+  .play{position:absolute;top:0;bottom:0;background:var(--accent);opacity:.3}
+  .head{position:absolute;top:0;bottom:0;width:2px;background:#fff;
+        box-shadow:0 0 8px rgba(255,255,255,.85)}
+  .t{font-variant-numeric:tabular-nums;color:var(--dim);font-size:12px;min-width:74px}
+  .list{display:flex;flex-direction:column;gap:7px;max-height:420px;overflow:auto;
+        scrollbar-width:thin;scrollbar-color:#2b3547 transparent}
+  .list::-webkit-scrollbar{width:8px}
+  .list::-webkit-scrollbar-thumb{background:#2b3547;border-radius:4px}
+  .row{display:grid;grid-template-columns:62px 1fr auto;gap:12px;align-items:center;
+       padding:9px 11px;border-radius:9px;background:#10151e;cursor:pointer;
+       border:1px solid transparent;font-size:14px}
+  .row:hover{background:#161d28}
+  .row.on{background:#12312c;border-color:var(--accent)}
+  .row .idx{color:var(--dim);font-size:12px;font-variant-numeric:tabular-nums}
+  .row.on .idx{color:var(--accent)}
+  .row .dup{color:var(--dim);font-size:11.5px;font-variant-numeric:tabular-nums}
+  .gapnote{color:var(--warn);font-size:11.5px}
+  h2{font-size:13px;text-transform:uppercase;letter-spacing:.07em;color:var(--dim);
+     margin:0 0 12px;font-weight:600}
+  .legend{font-size:12px;color:var(--dim);margin-top:10px;line-height:1.7}
+
+  /* ---- switch video ---------------------------------------------------- */
+  .swap{display:flex;gap:12px;align-items:flex-end;flex-wrap:wrap}
+  .swapf{display:flex;flex-direction:column;gap:5px;flex:1;min-width:250px}
+  .swapf.narrow{flex:0 0 120px;min-width:120px}
+  .swapf span{color:var(--dim);font-size:11.5px;text-transform:uppercase;
+              letter-spacing:.05em}
+  .swap input{background:#0a0e15;color:var(--fg);
+    border:1px solid var(--line);border-radius:9px;padding:9px 12px;
+    font:14px ui-monospace,SFMono-Regular,Menlo,monospace}
+  .swap input[type=number]{font-variant-numeric:tabular-nums}
+  .swap input:focus{outline:none;border-color:var(--accent)}
+  .swap input::placeholder{color:#5b6678;font-size:13px}
+  .swap button{white-space:nowrap}
+  .swap .selfend{align-self:flex-end;height:38px}
+  .swapnote{color:var(--dim);font-size:12px;margin-top:11px;line-height:1.65}
+  /* The build downloads audio and renders four speed variants, so it takes
+     minutes. Show the child's real output rather than an indeterminate spinner:
+     a frozen page gives no way to tell a slow download from a hang. */
+  .blog{margin-top:11px;background:#080b10;border:1px solid var(--line);
+    border-radius:9px;padding:10px 12px;max-height:230px;overflow:auto;
+    font:12px/1.65 ui-monospace,SFMono-Regular,Menlo,monospace;
+    color:#9fb0c4;white-space:pre-wrap;word-break:break-word;
+    scrollbar-width:thin;scrollbar-color:#2b3547 transparent}
+  .blog::-webkit-scrollbar{width:8px}
+  .blog::-webkit-scrollbar-thumb{background:#2b3547;border-radius:4px}
+  .blog .g{color:var(--accent)} .blog .r{color:#f87171} .blog .y{color:var(--warn)}
+  [hidden]{display:none !important}
+
+  /* audio-only stage: no video frame and no level meter, so the box is just
+     as tall as its contents. The 4/3 ratio existed for the video that used
+     to play here; keeping it would leave ~200px of empty black. */
+  .stage.audio-only{background:radial-gradient(120% 90% at 50% 20%,#182233,#0a0e15)}
+  .stageinfo{color:var(--dim);font-size:11.5px;letter-spacing:.06em;
+             text-transform:uppercase;padding:12px 0 4px;text-align:center}
+  .now{text-align:center;color:#5a6779;font-size:12.5px;padding-bottom:6px;
+       font-variant-numeric:tabular-nums}
+  .now b{color:var(--accent);font-weight:600}
+  .speedrow{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
+  .speedrow .lbl{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+  .speeds{display:flex;gap:6px}
+  button.sp{padding:6px 13px;font-size:13px}
+  button.sp.on{background:var(--accent);color:#05221e;font-weight:650}
+  .spnote{color:var(--dim);font-size:12px}
+  #toast{position:fixed;left:50%;bottom:34px;transform:translate(-50%,14px);
+         background:#1d2635;color:var(--fg);padding:10px 18px;border-radius:10px;
+         font-size:13.5px;border:1px solid var(--line);opacity:0;
+         transition:.22s;pointer-events:none;z-index:9}
+  #toast.show{opacity:1;transform:translate(-50%,0)}
+  .chip{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;
+        background:#1d2635;color:var(--dim);margin-right:6px}
+  .chip.g{background:#3a2f10;color:var(--warn)}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1 id="ttl">原声慢速跟读</h1>
+    <div class="sub" id="sub"></div>
+  </header>
+
+  <div class="card">
+    <h2>换视频</h2>
+    <div class="swap">
+      <label class="swapf">
+        <span>视频网址或 ID</span>
+        <input id="vurl" type="text" spellcheck="false" autocomplete="off"
+               placeholder="https://youtu.be/… 或 11 位视频 ID">
+      </label>
+      <label class="swapf narrow">
+        <span>截取时长(秒 · 0=完整)</span>
+        <input id="vlen" type="number" value="180" min="0" step="30">
+      </label>
+      <button id="vgo" class="selfend">生成跟读版</button>
+    </div>
+    <div class="swapnote" id="vnote">
+      网址留空则继续使用当前视频。时长决定从视频里取多长一段:
+      180 秒约 3 分钟,首次生成建议先用这个值试手;
+      <b>填 0 则截取完整音频</b>(长视频耗时和体积都会明显增加)。
+      生成需要下载音频并渲染 4 档变速,完成后本页自动刷新。
+    </div>
+    <div class="blog" id="blog" hidden></div>
+  </div>
+
+  <div class="card">
+    <div class="stage audio-only">
+      <div class="stageinfo" id="stageinfo"></div>
+      <div class="now" id="now"></div>
+      <div class="cue" id="cue"></div>
+    </div>
+
+    <div class="controls">
+      <button id="play">▶ 播放</button>
+      <button class="ghost" id="rep">↻ 重听本句</button>
+      <button class="ghost" id="loopBtn">🔁 循环跟读本句</button>
+      <div class="scrub">
+        <span class="t" id="t0">0.00</span>
+        <div class="track" id="track">
+          <div id="segs"></div><div id="playhead" class="head"></div>
+        </div>
+        <span class="t" id="t1">0.00</span>
+      </div>
+    </div>
+
+    <div class="speedrow">
+      <span class="lbl">跟读速度</span>
+      <div id="speeds" class="speeds"></div>
+      <span class="spnote" id="spnote">原速</span>
+    </div>
+
+    <div class="legend">
+      <span class="chip">字幕窗口</span><span class="chip g">静默间隙 &gt;0.4s</span>
+      <span class="chip">播放游标</span>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>字幕轨(点击跳转 · 时间为原速时间轴)</h2>
+    <div class="list" id="list"></div>
+  </div>
+</div>
+
+<div id="toast"></div>
+<audio id="a" src="speech.m4a" preload="auto"></audio>
+
+<script>
+// ---- slow-speed shadowing player ----------------------------------------
+// Speed is served from pre-rendered atempo files, NOT HTMLMediaElement
+// .playbackRate: changing playbackRate in a browser also shifts pitch, which
+// makes the speaker sound like a chipmunk and destroys the point of
+// shadowing a real voice. atempo stretches time while holding pitch, so each
+// speed ships as its own file and the caption timeline is rescaled to match.
+const SPEEDS = [1, 0.75, 0.6, 0.5];
+let M = null, cur = -1, speed = 1, loop = false, loopCount = 0, loopTimer = null;
+let loopIndex = -1;   // the sentence being repeated, for display
+let loopArmTimer = null;
+let HOP = 0.02;   // energy frame size, matching energy.json
+
+const A = document.getElementById('a');
+const V = document.getElementById('v');
+
+// ---- switch video --------------------------------------------------------
+// The player is static files, but swapping videos needs the whole pipeline
+// (captions, ffmpeg slices, atempo variants, speech measurement, audio
+// checks), which only the server can run. So the input posts to /api/build and
+// streams the child's log back, because a build takes minutes and a frozen
+// page cannot distinguish a slow download from a hang.
+const vurl = document.getElementById('vurl');
+const vlen = document.getElementById('vlen');
+const vgo = document.getElementById('vgo');
+const blog = document.getElementById('blog');
+const vnote = document.getElementById('vnote');
+let pollTimer = null;
+let lastLogLen = 0;
+let done = false;      // set once the build reports an outcome
+
+const esc = s => (s || '').replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+
+// colour the build log: green pass, red fail, amber warning
+function paint(line) {
+  let c = '';
+  if (/\bPASS\b|all checks passed|ready:/.test(line)) c = 'g';
+  else if (/\bFAIL|\berror\b|Traceback|\bFAILED\b/.test(line)) c = 'r';
+  else if (/warning|⚠|late>|skipped/i.test(line)) c = 'y';
+  return c ? `<span class="${c}">${esc(line)}</span>` : esc(line);
+}
+
+function showLog(lines) {
+  blog.hidden = false;
+  // Append only what is new, so the pane does not flicker on every poll and
+  // the user's scroll position survives.
+  if (lines.length < lastLogLen) { lastLogLen = 0; blog.innerHTML = ''; }
+  if (lines.length === lastLogLen) return;
+  const add = lines.slice(lastLogLen).map(paint).join('\n');
+  lastLogLen = lines.length;
+  if (blog.innerHTML) blog.insertAdjacentHTML('beforeend', '\n' + add);
+  else blog.innerHTML = add;
+  blog.scrollTop = blog.scrollHeight;
+}
+
+async function startBuild() {
+  const url = vurl.value.trim();
+  // Blank means "keep what is loaded", per the note under the input.
+  if (!url) {
+    vnote.textContent = '留空表示继续使用当前视频,无需生成。';
+    return;
+  }
+  vgo.disabled = true;
+  lastLogLen = 0;
+  done = false;
+  blog.hidden = false;
+  blog.textContent = '正在提交…';
+  // `Number(x) || 180` would turn a deliberate 0 into 180, because 0 is falsy
+  // in JS. Test the empty case explicitly so 0 can mean "whole video".
+  const nRaw = vlen.value.trim();
+  const len = nRaw === '' ? 180 : Number(nRaw);
+  if (!Number.isFinite(len) || len < 0) {
+    vnote.textContent = '时长需为不小于 0 的数字,0 表示完整音频。';
+    blog.hidden = true;
+    vgo.disabled = false;
+    return;
+  }
+  try {
+    const r = await fetch('/api/build', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url, length: len })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    vnote.textContent = '正在生成,完成后本页会自动刷新。可以继续看当前视频。';
+    if (pollTimer) clearInterval(pollTimer);
+    pollTimer = setInterval(poll, 1200);
+  } catch (e) {
+    blog.hidden = false;
+    blog.innerHTML = `<span class="r">${esc('无法开始生成:' + e.message)}</span>`;
+    vgo.disabled = false;
+  }
+}
+
+async function poll() {
+  let s;
+  try {
+    s = await (await fetch('/api/build')).json();
+  } catch { return; }
+  if (s.log) showLog(s.log);
+  if (s.running) return;
+  // Guard against a second poll already in flight when the first one
+  // finished: without this the closing message was appended once per pending
+  // request, and the page reloaded several times over.
+  if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
+  if (s.rc === 0) {
+    if (!done) {
+      done = true;
+      blog.innerHTML += '\n<span class="g">完成,正在刷新…</span>';
+      blog.scrollTop = blog.scrollHeight;
+      // cache-bust: a plain reload can serve the previous energy.json
+      setTimeout(() => location.reload(true), 700);
+    }
+  } else {
+    if (!done) {
+      done = true;
+      blog.innerHTML += `\n<span class="r">生成失败(exit ${s.rc}),` +
+        '播放器仍是上一次的版本。</span>';
+      vgo.disabled = false;
+    }
+  }
+}
+
+vgo.addEventListener('click', startBuild);
+vurl.addEventListener('keydown', e => { if (e.key === 'Enter') startBuild(); });
+vlen.addEventListener('keydown', e => { if (e.key === 'Enter') startBuild(); });
+
+fetch('player_captions.json')
+  .then(r => r.json())
+  .then(m => {
+    M = m;
+    // energy.json holds measured speech boundaries per sentence. Without it
+    // the player falls back to linear word pacing, which drifts on real audio.
+    return fetch('energy.json')
+      .then(r => r.ok ? r.json() : null)
+      .catch(() => null)
+      .then(e => {
+        if (e && e.captions && e.captions.length === M.captions.length) {
+          HOP = e.hop || 0.02;
+          e.captions.forEach((src, i) => {
+            const dst = M.captions[i];
+            dst.speech_start = src.speech_start;
+            dst.speech_end = src.speech_end;
+            dst.word_marks = src.word_marks;
+            dst.word_energy = src.word_energy;
+            dst.speech = src.speech;
+          });
+          M.energy_measured = true;
+        }
+        // prefill with the clip in play, so the default is "keep this one"
+        if (!vurl.value && M.videoId) vurl.placeholder = M.videoId + '  (当前)';
+        build();
+      });
+  });
+
+const fmt = t => t.toFixed(2);
+const capDur = () => M.captions[M.captions.length - 1].end;
+
+// media duration for the active speed (captions are the authority for the UI)
+const mediaDur = () => M.duration / speed;
+
+// caption index for a timestamp expressed in the *original* timeline
+//
+// Rolling cues overlap heavily: sentence 0 is still being spoken until 6.30s
+// while sentence 1's audio already started at 4.44s. Picking the sentence that
+// started most recently therefore switched the display at 4.44s and the last
+// words of sentence 0 never lit at all — the highlight trailed the voice by
+// however many words were left, which is what the user reported.
+//
+// Priority: keep showing a sentence until its speech is finished. Only move on
+// when the current sentence has run out of audio.
+function idxAtOrig(tOrig) {
+  const n = M.captions.length;
+  const meas = M.captions[0] && M.captions[0].speech_start != null;
+
+  if (meas) {
+    // Rolling caption windows overlap: the next sentence's audio can begin
+    // 0.06-0.25s before the current one ends, so switching on "the newest
+    // line that has begun" replaced the display while the outgoing sentence
+    // still had its final word unlit.
+    //
+    // Hold the outgoing line until its last word has actually lit. The hold
+    // is short by construction (a fraction of a second), and it guarantees no
+    // word is ever skipped.
+    for (let i = n - 1; i >= 0; i--) {
+      const c = M.captions[i];
+      const a = c.speech_start != null ? c.speech_start : c.start;
+      if (tOrig < a - 0.05) continue;
+      // `i` is the newest line that has begun; i-1 is the one on screen.
+      // Keep showing i-1 while it still has a word left to light.
+      if (i > 0) {
+        const cur = M.captions[i - 1];
+        const last = cur.word_marks && cur.word_marks.length
+          ? cur.word_marks[cur.word_marks.length - 1]
+          : (cur.speech_end != null ? cur.speech_end : cur.end);
+        const p0 = cur.speech_start != null ? cur.speech_start : cur.start;
+        if (p0 - 0.05 <= tOrig && tOrig < last) return i - 1;
+      }
+      return i;
+    }
+  }
+
+  for (let i = n - 1; i >= 0; i--) {
+    if (tOrig >= M.captions[i].start) return i;
+  }
+  return -1;
+}
+
+function escapeHtml(s) {
+  return s.replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+}
+
+// ---------------------------------------------------------------- build
+function build() {
+  const C = M.captions;
+
+  // header
+  document.getElementById('ttl').textContent = M.title || '原声慢速跟读';
+  const src = M.source || {};
+  document.getElementById('sub').innerHTML =
+    `${C.length} 句 · ${fmt(M.duration)}s · 字幕来源:` +
+    `<b style="color:${src.kind==='auto'?'#fbbf24':'#5eead4'}">` +
+    `${src.kind==='auto'?'自动生成':'人工'}</b>` +
+    ` · 原速 ${fmt(M.duration)}s,` +
+    `快捷键:空格播放 / L 循环 / R 重听`;
+  document.getElementById('stageinfo').textContent = '正在聆听 · 慢速跟读';
+
+  // speed buttons
+  const sp = document.getElementById('speeds');
+  sp.innerHTML = '';
+  SPEEDS.forEach(s => {
+    const b = document.createElement('button');
+    b.className = 'ghost sp' + (s === speed ? ' on' : '');
+    b.textContent = s === 1 ? '1.0×' : s.toFixed(2).replace(/0$/, '') + '×';
+    b.dataset.s = s;
+    b.onclick = () => setSpeed(s);
+    sp.appendChild(b);
+  });
+
+  // caption list — timestamps always shown on the original timeline
+  const L = document.getElementById('list');
+  C.forEach((c, i) => {
+    const gapAfter = i + 1 < C.length ? C[i + 1].start - c.end : 0;
+    const r = document.createElement('div');
+    r.className = 'row'; r.dataset.i = i;
+    r.innerHTML = `<span class="idx">${String(i + 1).padStart(2, '0')}</span>
+      <span>${escapeHtml(c.text)}</span>
+      <span class="dup">${fmt(c.start)}→${fmt(c.end)}` +
+      (gapAfter > 0.4 ? ` <span class="gapnote">+${gapAfter.toFixed(2)}s静默</span>` : '') +
+      `</span>`;
+    L.appendChild(r);
+  });
+
+  L.onclick = ev => {
+    const r = ev.target.closest('.row'); if (!r) return;
+    const c = C[+r.dataset.i];
+    // Jumping to a line is a request to leave the repeated one; without this
+    // the loop's 30ms poll keeps seeking back and the click does nothing.
+    if (loop) stopLoop();
+    seekOrig(c.start + 0.01);
+    if (typeof ensureRunning === 'function') ensureRunning();
+    if (A.paused) A.play();
+  };
+
+  bind();
+  renderTrack();
+  tick(0);
+}
+
+// caption windows + silent gaps, scaled to the active speed
+function renderTrack() {
+  const C = M.captions, dur = mediaDur(), T = 100 / dur;
+  const segs = document.getElementById('segs');
+  segs.innerHTML = '';
+  let prev = 0;
+  C.forEach(c => {
+    const s0 = c.start / speed, s1 = c.end / speed;   // media-time positions
+    if (s0 - prev > 0.4) {
+      const g = document.createElement('div');
+      g.className = 'gap';
+      g.style.left = prev * T + '%';
+      g.style.width = (s0 - prev) * T + '%';
+      g.title = `静默 ${((s0 - prev) * speed).toFixed(2)}s`;
+      segs.appendChild(g);
+    }
+    const s = document.createElement('div');
+    s.className = 'seg';
+    s.style.left = s0 * T + '%';
+    s.style.width = (s1 - s0) * T + '%';
+    s.title = c.text;
+    segs.appendChild(s);
+    prev = s1;
+  });
+}
+
+// ---------------------------------------------------------------- speed
+function setSpeed(s) {
+  const tOrig = A.currentTime * speed;        // keep position in orig timeline
+  speed = s;
+  // String(1) carries no '.', so toFixed(2) must run before the p-substitution
+  // (otherwise this requests speech_1.m4a, which 404s).
+  const file = `slow/speech_${s.toFixed(2).replace('.', 'p')}.m4a`;
+  A.src = file;
+  A.load();
+  const seek = () => { A.currentTime = tOrig / speed; renderTrack(); tick(A.currentTime); };
+  A.addEventListener('loadedmetadata', seek, { once: true });
+  if (M.video) V.playbackRate = 1;              // video stays native
+  document.querySelectorAll('.sp').forEach(b =>
+    b.classList.toggle('on', +b.dataset.s === s));
+  const note = document.getElementById('spnote');
+  if (note) note.textContent = s === 1 ? '原速' : `${(1 / s).toFixed(2)}× 慢速 · 音高不变`;
+}
+
+function seekOrig(tOrig) {
+  A.currentTime = tOrig / speed;
+  if (M.video) V.currentTime = tOrig;
+  tick(A.currentTime);
+}
+
+// ---------------------------------------------------------------- render
+function tick(tMedia) {
+  const tOrig = tMedia * speed;
+  const dur = mediaDur();
+  document.getElementById('t0').textContent = fmt(tOrig);
+  document.getElementById('t1').textContent = fmt(M.duration);
+  document.getElementById('playhead').style.left = (tMedia / dur * 100) + '%';
+
+  const i = idxAtOrig(tOrig);
+  const nowEl = document.getElementById('now');
+  // While looping, the indicator must report the repeated sentence, not
+  // whatever idxAtOrig() infers from a playhead sitting in a caption gap.
+  const shown = loop && loopIndex >= 0 ? loopIndex : i;
+  if (nowEl) {
+    nowEl.innerHTML = shown >= 0
+      ? `第 <b>${shown + 1}</b> / ${M.captions.length} 句 · <b>${fmt(tOrig)}</b>s`
+      : `准备开始 · <b>${fmt(tOrig)}</b>s`;
+  }
+  if (shown !== cur) {
+    cur = shown;
+    document.querySelectorAll('.row').forEach(r =>
+      r.classList.toggle('on', +r.dataset.i === cur));
+    const on = document.querySelector('.row.on');
+    if (on) on.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }
+
+  const cue = document.getElementById('cue');
+  // While looping, the display must stay on the sentence being repeated even
+  // if the playhead wanders past its end: idxAtOrig() would otherwise advance
+  // to the next line and the highlight would follow audio that is not playing.
+  const show = loop && loopIndex >= 0 ? loopIndex : i;
+  if (show < 0) { cue.textContent = ''; return; }
+  const seg = M.captions[show];
+  const words = seg.text.split(/\s+/).filter(Boolean);
+  const lit = countLit(seg, words.length, tOrig);
+  cue.innerHTML = words.map((w, k) =>
+    `<span class="w${k < lit ? ' on' : ''}">${escapeHtml(w)}</span>`).join(' ');
+}
+
+// How many words should be lit at tOrig.
+//
+// The naive model spreads words evenly over [seg.start, seg.end]. Measured
+// against the audio that is wrong: caption windows trail the last spoken word
+// by up to 1.7s, so a linear sweep runs ahead of the voice through the tail
+// of every sentence. energy.json carries the real voiced span per sentence
+// (from an RMS envelope with an Otsu threshold), so pacing is derived from
+// speech time and each word is placed on its own measured energy peak.
+let MARKS = null;   // marks[i] = Float64Array of light-up times, len = words+1
+
+// Rough syllable count. Word length is a poor proxy for speaking time
+// ("the" is one syllable, "communications" is four), and even spreading
+// across words still lets the cursor drift inside a sentence.
+function syllables(w) {
+  const t = w.toLowerCase().replace(/[^a-z]/g, '');
+  if (!t) return 1;
+  const groups = t.match(/[aeiouy]+/g) || [];
+  let n = groups.length;
+  if (/e$/.test(t) && n > 1 && !/(le|ee|ye|oe)$/.test(t)) n--;   // silent e
+  if (/(?:^|[^aeiouy])le$/.test(t)) n++;                          // -tle, -ble
+  return Math.max(1, n);
+}
+
+function buildMarks() {
+  MARKS = M.captions.map(seg => {
+    const words = seg.text.split(/\s+/).filter(Boolean);
+    const n = words.length;
+    const m = new Float64Array(n + 1);
+    const s0 = seg.speech_start, s1 = seg.speech_end;
+    const marks = seg.word_marks;      // measured per-word light-up times
+
+    // Preferred path: the measurement already resolved each word's onset.
+    if (marks && marks.length === n && s0 != null && s1 != null) {
+      for (let k = 0; k < n; k++) {
+        m[k] = k === 0 ? marks[k] : Math.max(m[k - 1], marks[k]);
+      }
+      m[n] = Math.max(m[n - 1], s1);
+      return m;
+    }
+
+    // No measurement for this sentence: spread words over the measured
+    // speech span if we have one, otherwise over the caption window.
+    if (s0 == null || s1 == null || !(s1 > s0)) {
+      for (let k = 0; k <= n; k++) {
+        m[k] = seg.start + (seg.end - seg.start) * (k / n);
+      }
+      return m;
+    }
+    const wgt = words.map(syllables);
+    const total = wgt.reduce((a, b) => a + b, 0) || n;
+    let acc = 0;
+    for (let k = 0; k < n; k++) {
+      const t = s0 + (s1 - s0) * (acc / total);
+      acc += wgt[k];
+      m[k] = k === 0 ? t : Math.max(m[k - 1], t);
+    }
+    m[n] = Math.max(m[n - 1], s1);
+    return m;
+  });
+}
+
+function countLit(seg, n, tOrig) {
+  if (!MARKS) buildMarks();
+  const m = MARKS[seg.i];
+  if (!m) {
+    const p = Math.max(0, Math.min(1, (tOrig - seg.start) / (seg.end - seg.start)));
+    return Math.round(p * n);
+  }
+  // m[k] is the time word k lights up, and m[n] is the end. Count how many
+  // of m[0..n-1] have passed: that count is exactly the number of lit words.
+  let lit = 0;
+  for (let k = 0; k < n; k++) {
+    if (m[k] <= tOrig) lit = k + 1; else break;
+  }
+  return Math.max(0, Math.min(n, lit));
+}
+
+// ---------------------------------------------------------------- loop
+// Repeats ONE sentence so the listener can shadow it.
+//
+// Two things this must get right, both learned from the highlight bugs:
+//
+//  * The repeat has to span the measured SPEECH, not the caption window. The
+//    windows are rolling and overlap, so a window runs 2.29s past the last
+//    spoken word on average (4.44s of audio inside a 6.40s window on the
+//    first sentence). Looping to the window edge played almost two seconds of
+//    the NEXT sentence inside every repetition.
+//  * The caption shown must stay the sentence being looped. At the window edge
+//    idxAtOrig() had already advanced, so the display showed sentence 1 while
+//    sentence 0 was still playing, and the highlight tracked the wrong line.
+function loopSpan(i) {
+  const c = M.captions[i];
+  const meas = M.energy_measured && c.speech_start != null;
+  return {
+    a: meas ? c.speech_start : c.start,
+    b: meas ? c.speech_end : c.end
+  };
+}
+
+function startLoop() {
+  const i = idxAtOrig(A.currentTime * speed);
+  if (i < 0) { flash('先开始播放,再进入循环'); return; }
+  loop = true; loopCount = 0; loopIndex = i;
+  document.getElementById('loopBtn').classList.add('on');
+  document.getElementById('loopBtn').textContent = `⏹ 循环中 ×0`;
+  runLoopStep(i);
+}
+
+// Arming the end-check straight after A.play() was wrong in two ways that
+// both showed up as "one pass, then it claims five":
+//
+//  1. A.pause() does not move the playhead. On the next 30ms tick
+//     currentTime was still past sp.b, so the check fired again immediately:
+//     ×1 ×2 ×3 ×4 all landed inside ~20ms.
+//  2. seekOrig() is asynchronous. Starting the poll before the browser had
+//     seeked back to sp.a meant the first repetition could end instantly if
+//     the old playhead was already past the end.
+//
+// So each repetition now goes through an explicit armed state: seek, wait for
+// the playhead to actually be inside the span, and only then start counting.
+const LOOP_GAP_MS = 450;      // silence between reps, for the listener to shadow
+let loopArmed = false;
+
+function runLoopStep(i) {
+  const sp = loopSpan(i);
+  clearInterval(loopTimer);
+  clearTimeout(loopArmTimer);
+  loopArmed = false;
+
+  seekOrig(sp.a + 0.01);
+  if (typeof ensureRunning === 'function') ensureRunning();
+  A.play().catch(() => {});
+
+  // wait for the seek to land before deciding when the rep is over
+  let waited = 0;
+  loopTimer = setInterval(() => {
+    const tOrig = A.currentTime * speed;
+    if (!loopArmed) {
+      if (tOrig >= sp.a - 0.05 && tOrig < sp.b - 0.02) { loopArmed = true; waited = 0; }
+      else if (++waited > 40) {           // ~1.2s: seek never took, force arm
+        loopArmed = true; waited = 0;
+      }
+      return;
+    }
+    if (tOrig >= sp.b - 0.02) {
+      A.pause();
+      loopCount++;
+      if (loopCount >= 5) {          // auto-exit after 5 reps
+        stopLoop(true);
+        return;
+      }
+      document.getElementById('loopBtn').textContent = `⏹ 循环中 ×${loopCount}`;
+      clearInterval(loopTimer);
+      loopArmTimer = setTimeout(() => { if (loop) runLoopStep(i); }, LOOP_GAP_MS);
+    }
+  }, 30);
+}
+
+function stopLoop(completed) {
+  loop = false;
+  loopIndex = -1;
+  loopArmed = false;
+  clearInterval(loopTimer);
+  clearTimeout(loopArmTimer);
+  const b = document.getElementById('loopBtn');
+  b.classList.remove('on');
+  b.textContent = '🔁 循环跟读本句';
+  if (completed) flash('本句循环 5 次完成');
+  // the display was pinned to the repeated line; let it follow the playhead
+  cur = -1;
+  tick(A.currentTime);
+}
+
+let flashTimer = null;
+function flash(msg) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.classList.add('show');
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => el.classList.remove('show'), 1800);
+}
+
+// ---------------------------------------------------------------- bind
+function bind() {
+  const play = document.getElementById('play');
+
+  // reactive level meter: gives the audio-only stage something to show.
+  //
+  // createMediaElementSource() reroutes <audio> through the Web Audio graph.
+  // While that context is "suspended" the element reports paused=false but
+  // currentTime never advances and no sound is produced — the page looks
+  // like the play button is broken. Two guards: resume() on every user
+  // gesture, and a plain-playback fallback if the graph cannot be built.
+  //
+  // The graph is no longer used to draw a level meter, but it is still wired
+  // up: createMediaElementSource() can only be called once per element, so
+  // once it exists the audio must keep flowing through it.
+  let audioCtx = null;
+  try {
+    audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+    const src = audioCtx.createMediaElementSource(A);
+    src.connect(audioCtx.destination);
+
+    // Autoplay policies may leave the context suspended; a click or keypress
+    // is the only reliable moment to lift it.
+    const wake = () => {
+      if (audioCtx && audioCtx.state === 'suspended') {
+        audioCtx.resume().catch(() => {});
+      }
+    };
+    ['pointerdown', 'keydown', 'touchstart'].forEach(ev =>
+      window.addEventListener(ev, wake, { passive: true }));
+  } catch (e) {
+    // No Web Audio (old browser, blocked by policy, …): the stage simply
+    // loses its meter; <audio> still plays through its own path.
+    console.warn('level meter unavailable, using plain playback:', e);
+  }
+
+  // Guard every play path: if the context is still suspended the audio
+  // would be silent, so try to wake it before starting.
+  const ensureRunning = () => {
+    if (audioCtx && audioCtx.state !== 'running') {
+      audioCtx.resume().catch(() => {});
+    }
+  };
+
+  A.addEventListener('timeupdate', () => {
+    tick(A.currentTime);
+    if (M.video && Math.abs(V.currentTime - A.currentTime) > 0.25) {
+      V.currentTime = A.currentTime;
+    }
+  });
+  A.addEventListener('play', () => {
+    ensureRunning();
+    play.textContent = '⏸ 暂停';
+    if (M.video) V.play().catch(() => {});
+  });
+  A.addEventListener('pause', () => {
+    play.textContent = '▶ 播放';
+    if (M.video) V.pause();
+  });
+  A.addEventListener('ended', () => { play.textContent = '▶ 播放'; tick(0); });
+
+  play.onclick = () => { ensureRunning(); A.paused ? A.play() : A.pause(); };
+
+  document.getElementById('rep').onclick = () => {
+    const i = idxAtOrig(A.currentTime * speed);
+    if (i < 0) return;
+    seekOrig(M.captions[i].start + 0.01);
+    ensureRunning();
+    A.play();
+  };
+
+  document.getElementById('loopBtn').onclick = () =>
+    loop ? stopLoop() : startLoop();
+
+  // seek bar
+  const T = document.getElementById('track');
+  const seek = ev => {
+    const r = T.getBoundingClientRect();
+    const p = Math.max(0, Math.min(1, (ev.clientX - r.left) / r.width));
+    seekOrig(p * M.duration);
+  };
+  let drag = false;
+  T.addEventListener('mousedown', e => { drag = true; seek(e); });
+  T.addEventListener('mousemove', e => { if (drag) seek(e); });
+  window.addEventListener('mouseup', () => drag = false);
+  T.addEventListener('touchstart', e => seek(e.touches[0]), { passive: true });
+
+  // keyboard: space play/pause, L loop, R replay
+  window.addEventListener('keydown', e => {
+    ensureRunning();
+    if (e.code === 'Space') { e.preventDefault(); A.paused ? A.play() : A.pause(); }
+    if (e.key === 'l' || e.key === 'L') loop ? stopLoop() : startLoop();
+    if (e.key === 'r' || e.key === 'R') document.getElementById('rep').click();
+  });
+}
+
+</script>
+</body>
+</html>

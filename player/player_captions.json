@@ -1,0 +1,2107 @@
+{
+  "videoId": "nxgF9NfYjRc",
+  "title": "How to Speak More Clearly at Work",
+  "audio": "speech.m4a",
+  "video": null,
+  "duration": 1098.998,
+  "captions": [
+    {
+      "i": 0,
+      "start": 0.0,
+      "end": 6.4,
+      "text": "What if I told you that people who speak with confidence weren't born like that?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 0.0
+    },
+    {
+      "i": 1,
+      "start": 4.44,
+      "end": 12.582,
+      "text": "They just figured out how to improve their speaking skills so people pay attention and stay engaged.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 4.44
+    },
+    {
+      "i": 2,
+      "start": 11.2,
+      "end": 21.24,
+      "text": "As an instructor at Columbia University, I'm going to share with you for the very first time the four things I did that",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 11.2
+    },
+    {
+      "i": 3,
+      "start": 17.96,
+      "end": 29.24,
+      "text": "transformed my own speaking so you can now walk into any room, any situation, in front of any kind of audience and",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 17.96
+    },
+    {
+      "i": 4,
+      "start": 26.44,
+      "end": 31.572,
+      "text": "know how to command their attention.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 26.44
+    },
+    {
+      "i": 5,
+      "start": 29.24,
+      "end": 34.64,
+      "text": "By the way, the best part about it all?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 29.24
+    },
+    {
+      "i": 6,
+      "start": 32.0,
+      "end": 35.24,
+      "text": "The freedom.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 32.0
+    },
+    {
+      "i": 7,
+      "start": 33.323,
+      "end": 40.68,
+      "text": "No more fear or nervousness, just pure certainty of what to do and what to say.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 33.323
+    },
+    {
+      "i": 8,
+      "start": 39.474,
+      "end": 47.462,
+      "text": "Because in this video, I'm going to take you through the exact journey of how I figured it out.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 39.474
+    },
+    {
+      "i": 9,
+      "start": 45.12,
+      "end": 53.88,
+      "text": "The real turning points, the research behind why they work, and what you can start doing differently today.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 45.12
+    },
+    {
+      "i": 10,
+      "start": 53.848,
+      "end": 65.239,
+      "text": "In fact, all of this can be found in my best-selling communications book, Smart Not Loud: How to Get Noticed at Work the right reasons, where I teach smart and",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 53.848
+    },
+    {
+      "i": 11,
+      "start": 62.8,
+      "end": 71.8,
+      "text": "ambitious professionals like you how to get the best opportunities without being",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 62.8
+    },
+    {
+      "i": 12,
+      "start": 68.12,
+      "end": 73.88,
+      "text": "loud, rude, or obnoxious about it.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 68.12
+    },
+    {
+      "i": 13,
+      "start": 71.8,
+      "end": 76.4,
+      "text": "Because I want to be clear.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 71.8
+    },
+    {
+      "i": 14,
+      "start": 73.88,
+      "end": 80.277,
+      "text": "I didn't wake up one day and suddenly become a good communicator.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 73.88
+    },
+    {
+      "i": 15,
+      "start": 79.0,
+      "end": 89.96,
+      "text": "It happened because of specific lessons, some of them painful, that completely rewired how I think about speaking, presence,",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 79.0
+    },
+    {
+      "i": 16,
+      "start": 87.44,
+      "end": 89.022,
+      "text": "and influence.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 87.44
+    },
+    {
+      "i": 17,
+      "start": 89.022,
+      "end": 100.84,
+      "text": "By the way, make sure you listen to the third point in this video because what I did there is truly the one that changed everything for me and I",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 89.022
+    },
+    {
+      "i": 18,
+      "start": 98.0,
+      "end": 101.877,
+      "text": "think it might do the same for you.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 98.0
+    },
+    {
+      "i": 19,
+      "start": 100.84,
+      "end": 110.08,
+      "text": "So, here's the first thing I did that completely transformed my communication skills.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 100.84
+    },
+    {
+      "i": 20,
+      "start": 106.2,
+      "end": 116.0,
+      "text": "I stopped trying to impress people and started thinking about what other people needed to hear.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 106.2
+    },
+    {
+      "i": 21,
+      "start": 114.2,
+      "end": 119.068,
+      "text": "Let me take you back to when I first started working on TV.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 114.2
+    },
+    {
+      "i": 22,
+      "start": 118.8,
+      "end": 128.479,
+      "text": "I was young, I was ambitious, and honestly, I thought that in order to get people to respect me, I had to put on this",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 118.8
+    },
+    {
+      "i": 23,
+      "start": 126.2,
+      "end": 130.84,
+      "text": "armor of bravado, so people would take me seriously at work.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 126.2
+    },
+    {
+      "i": 24,
+      "start": 130.5,
+      "end": 134.84,
+      "text": "But here's what happened.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 130.5
+    },
+    {
+      "i": 25,
+      "start": 132.04,
+      "end": 136.959,
+      "text": "I failed big time.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 132.04
+    },
+    {
+      "i": 26,
+      "start": 134.84,
+      "end": 143.48,
+      "text": "What I was doing was walking into meetings desperately trying to impress people.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 134.84
+    },
+    {
+      "i": 27,
+      "start": 140.52,
+      "end": 151.44,
+      "text": "For example, I would speak like a robot, use tons of technical words, load everything with data and proof to build",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 140.52
+    },
+    {
+      "i": 28,
+      "start": 148.44,
+      "end": 157.84,
+      "text": "credibility, and make myself sound intelligent with sophisticated language because I thought it would make me look",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 148.44
+    },
+    {
+      "i": 29,
+      "start": 155.72,
+      "end": 159.64,
+      "text": "smarter.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 155.72
+    },
+    {
+      "i": 30,
+      "start": 157.84,
+      "end": 166.88,
+      "text": "I tried this for a few months like I had something to prove, but one day my boss noticed this, and she did",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 157.84
+    },
+    {
+      "i": 31,
+      "start": 164.32,
+      "end": 168.48,
+      "text": "something that shook me to my core.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 164.32
+    },
+    {
+      "i": 32,
+      "start": 166.88,
+      "end": 173.6,
+      "text": "After a meeting one day, she pulled me aside and said, \"Jess, I know you're smart and hardworking.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 166.88
+    },
+    {
+      "i": 33,
+      "start": 173.026,
+      "end": 176.36,
+      "text": "It's why we hired you.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 173.026
+    },
+    {
+      "i": 34,
+      "start": 174.52,
+      "end": 183.519,
+      "text": "But it would really help you a lot if you could just simplify your points before you speak.\"",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 174.52
+    },
+    {
+      "i": 35,
+      "start": 181.28,
+      "end": 186.68,
+      "text": "Imagine hearing that from your boss.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 181.28
+    },
+    {
+      "i": 36,
+      "start": 183.519,
+      "end": 192.959,
+      "text": "Honestly, while that sentence hit me so hard at the time, in retrospect, I think it was one of the best advice I ever",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 183.519
+    },
+    {
+      "i": 37,
+      "start": 190.72,
+      "end": 199.76,
+      "text": "got. Because I realized that up until that point, I hadn't just been talking like a robot, really stiff, really",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 190.72
+    },
+    {
+      "i": 38,
+      "start": 197.64,
+      "end": 203.959,
+      "text": "unnatural, just to get people to think of me a certain way.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 197.64
+    },
+    {
+      "i": 39,
+      "start": 201.68,
+      "end": 208.28,
+      "text": "But as a result, every time I spoke, it wasn't resonating or connecting.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 201.68
+    },
+    {
+      "i": 40,
+      "start": 206.519,
+      "end": 210.48,
+      "text": "Now, if you're a smart person, chances are you're like me.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 206.519
+    },
+    {
+      "i": 41,
+      "start": 210.404,
+      "end": 216.0,
+      "text": "You do have all the data and the facts prepared before a meeting.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 210.404
+    },
+    {
+      "i": 42,
+      "start": 213.76,
+      "end": 219.22,
+      "text": "But the problem is what psychologists call the curse of knowledge.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 213.76
+    },
+    {
+      "i": 43,
+      "start": 218.8,
+      "end": 227.852,
+      "text": "And this is the idea that once you know something deeply, you lose the ability to imagine what it's like to not know it.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 218.8
+    },
+    {
+      "i": 44,
+      "start": 225.959,
+      "end": 230.446,
+      "text": "Meaning, you skip steps, you assume context.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 225.959
+    },
+    {
+      "i": 45,
+      "start": 229.08,
+      "end": 235.6,
+      "text": "You go into your meeting speaking in a way that assumes everyone knows what you're talking about.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 229.08
+    },
+    {
+      "i": 46,
+      "start": 235.114,
+      "end": 239.04,
+      "text": "And that was exactly what my boss meant.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 235.114
+    },
+    {
+      "i": 47,
+      "start": 238.017,
+      "end": 245.378,
+      "text": "I needed to simplify my points, uncomplicate them, and really put others at the center of what I was saying.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 238.017
+    },
+    {
+      "i": 48,
+      "start": 245.378,
+      "end": 251.68,
+      "text": "So, here's what I actually did to change that.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 245.378
+    },
+    {
+      "i": 49,
+      "start": 249.0,
+      "end": 257.359,
+      "text": "Before any important conversation or meeting, I would ask myself two questions.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 249.0
+    },
+    {
+      "i": 50,
+      "start": 255.44,
+      "end": 261.32,
+      "text": "What do the people in this room already know?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 255.44
+    },
+    {
+      "i": 51,
+      "start": 259.0,
+      "end": 264.44,
+      "text": "And how can I share my points in a clear and concise way?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 259.0
+    },
+    {
+      "i": 52,
+      "start": 263.04,
+      "end": 267.68,
+      "text": "That's it.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 263.04
+    },
+    {
+      "i": 53,
+      "start": 264.44,
+      "end": 267.68,
+      "text": "This was a huge reframe.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 264.44
+    },
+    {
+      "i": 54,
+      "start": 267.68,
+      "end": 275.52,
+      "text": "And now all you have to do is go into your next meeting not thinking you have to impress your boss, your team, or even your clients.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 267.68
+    },
+    {
+      "i": 55,
+      "start": 274.48,
+      "end": 279.6,
+      "text": "It's what do they need to hear?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 274.48
+    },
+    {
+      "i": 56,
+      "start": 277.48,
+      "end": 282.339,
+      "text": "And how can you say it in the cleanest and clearest way?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 277.48
+    },
+    {
+      "i": 57,
+      "start": 282.28,
+      "end": 292.0,
+      "text": "In fact, I'll tell you, when you start speaking like this, impressing people will happen because they actually understand the point",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 282.28
+    },
+    {
+      "i": 58,
+      "start": 290.04,
+      "end": 291.456,
+      "text": "you're making.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 290.04
+    },
+    {
+      "i": 59,
+      "start": 291.456,
+      "end": 295.32,
+      "text": "Which brings me to my next point.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 291.456
+    },
+    {
+      "i": 60,
+      "start": 293.68,
+      "end": 305.36,
+      "text": "The second thing that I did that completely transformed my communication skills was learning that how I said something",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 293.68
+    },
+    {
+      "i": 61,
+      "start": 301.64,
+      "end": 307.16,
+      "text": "mattered just as much as what I said.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 301.64
+    },
+    {
+      "i": 62,
+      "start": 305.36,
+      "end": 311.44,
+      "text": "Here's something nobody tells you when you start out in your career.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 305.36
+    },
+    {
+      "i": 63,
+      "start": 309.28,
+      "end": 317.68,
+      "text": "The words you say really, at the end of the day, are only a small small small small part of the equation.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 309.28
+    },
+    {
+      "i": 64,
+      "start": 316.32,
+      "end": 326.72,
+      "text": "The bigger part, the part that determines whether people lean in or tune out, is how those words feel when they land.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 316.32
+    },
+    {
+      "i": 65,
+      "start": 324.04,
+      "end": 328.28,
+      "text": "So, why did I have to learn this?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 324.04
+    },
+    {
+      "i": 66,
+      "start": 326.72,
+      "end": 333.2,
+      "text": "Let me take you back to the kind of environment I grew up in.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 326.72
+    },
+    {
+      "i": 67,
+      "start": 330.4,
+      "end": 335.685,
+      "text": "My parents were pretty traditional.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 330.4
+    },
+    {
+      "i": 68,
+      "start": 333.2,
+      "end": 339.16,
+      "text": "They immigrated from Asia to the US for what?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 333.2
+    },
+    {
+      "i": 69,
+      "start": 336.44,
+      "end": 344.307,
+      "text": "To achieve that American dream in hopes of creating a better future for themselves and their children.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 336.44
+    },
+    {
+      "i": 70,
+      "start": 342.64,
+      "end": 351.8,
+      "text": "And to them, that meant my brother and I, we We to work hard, study hard, get a good job, find a good career to have that",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 342.64
+    },
+    {
+      "i": 71,
+      "start": 350.4,
+      "end": 354.44,
+      "text": "success.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 350.4
+    },
+    {
+      "i": 72,
+      "start": 351.8,
+      "end": 361.44,
+      "text": "But not once did they ever talk about learning the importance of communicating, or more importantly, how",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 351.8
+    },
+    {
+      "i": 73,
+      "start": 358.72,
+      "end": 360.782,
+      "text": "to communicate.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 358.72
+    },
+    {
+      "i": 74,
+      "start": 360.782,
+      "end": 366.28,
+      "text": "They never talked to me about politics of work or how to influence people.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 360.782
+    },
+    {
+      "i": 75,
+      "start": 366.046,
+      "end": 375.12,
+      "text": "So, you can imagine when I started working, it was a huge culture shock, just trying to figure out how to speak in a way that was both",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 366.046
+    },
+    {
+      "i": 76,
+      "start": 372.52,
+      "end": 377.44,
+      "text": "professional and authentic.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 372.52
+    },
+    {
+      "i": 77,
+      "start": 375.12,
+      "end": 384.6,
+      "text": "And truly, what I realized was communications, it is about words, but that's not",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 375.12
+    },
+    {
+      "i": 78,
+      "start": 381.64,
+      "end": 382.993,
+      "text": "everything.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 381.64
+    },
+    {
+      "i": 79,
+      "start": 382.993,
+      "end": 388.08,
+      "text": "And that's when I realized I needed to rethink this.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 382.993
+    },
+    {
+      "i": 80,
+      "start": 386.56,
+      "end": 393.08,
+      "text": "So, as a reporter when I was working on TV, we actually had time working with consultants.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 386.56
+    },
+    {
+      "i": 81,
+      "start": 392.052,
+      "end": 396.104,
+      "text": "And they trained us on how to be better communicators.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 392.052
+    },
+    {
+      "i": 82,
+      "start": 395.68,
+      "end": 404.919,
+      "text": "One day, the consultant I was working with told me that adjusting my tone could help me develop more executive presence and give",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 395.68
+    },
+    {
+      "i": 83,
+      "start": 402.72,
+      "end": 405.466,
+      "text": "me more gravitas. What?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 402.72
+    },
+    {
+      "i": 84,
+      "start": 405.466,
+      "end": 411.8,
+      "text": "I had honestly never heard about this, and I was hooked.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 405.466
+    },
+    {
+      "i": 85,
+      "start": 409.08,
+      "end": 415.04,
+      "text": "So, this is what she taught me.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 409.08
+    },
+    {
+      "i": 86,
+      "start": 411.8,
+      "end": 417.68,
+      "text": "Your tone has five elements.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 411.8
+    },
+    {
+      "i": 87,
+      "start": 415.04,
+      "end": 422.08,
+      "text": "There is your pitch, how high or low your voice is.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 415.04
+    },
+    {
+      "i": 88,
+      "start": 419.16,
+      "end": 424.76,
+      "text": "Your intensity, how loud or soft your voice is.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 419.16
+    },
+    {
+      "i": 89,
+      "start": 423.44,
+      "end": 427.52,
+      "text": "Your rate, how fast you're speaking.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 423.44
+    },
+    {
+      "i": 90,
+      "start": 425.906,
+      "end": 431.913,
+      "text": "Your inflections, what works what words you want emphasized.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 425.906
+    },
+    {
+      "i": 91,
+      "start": 429.6,
+      "end": 433.6,
+      "text": "And finally, the quality of your voice.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 429.6
+    },
+    {
+      "i": 92,
+      "start": 432.48,
+      "end": 435.6,
+      "text": "You know when you call someone you know it's them?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 432.48
+    },
+    {
+      "i": 93,
+      "start": 434.67,
+      "end": 436.81,
+      "text": "That's the quality.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 434.67
+    },
+    {
+      "i": 94,
+      "start": 435.6,
+      "end": 446.6,
+      "text": "Well, the consultant told me that if we modulate our voice, sometimes speaking in a lower pitch to show depth, speed up to convey",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 435.6
+    },
+    {
+      "i": 95,
+      "start": 443.68,
+      "end": 453.1,
+      "text": "excitement, or soften our voice to get people to lean in, it could completely change how a message lands.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 443.68
+    },
+    {
+      "i": 96,
+      "start": 451.88,
+      "end": 456.32,
+      "text": "In fact, there's research to back all this up.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 451.88
+    },
+    {
+      "i": 97,
+      "start": 454.52,
+      "end": 464.36,
+      "text": "In 2014, a study published in the Psychological Science magazine found that intentional vocal variation can",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 454.52
+    },
+    {
+      "i": 98,
+      "start": 461.4,
+      "end": 473.16,
+      "text": "make speakers measurably more persuasive and memorable even though the content of their message was exactly the same as a",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 461.4
+    },
+    {
+      "i": 99,
+      "start": 469.68,
+      "end": 471.973,
+      "text": "monotone delivery.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 469.68
+    },
+    {
+      "i": 100,
+      "start": 471.973,
+      "end": 476.4,
+      "text": "So, that completely changed.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 471.973
+    },
+    {
+      "i": 101,
+      "start": 474.52,
+      "end": 484.76,
+      "text": "Just that modulation compared to a monotone can completely change the impact even though the words are the same.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 474.52
+    },
+    {
+      "i": 102,
+      "start": 482.44,
+      "end": 487.856,
+      "text": "So, the difference in me learning to do this was immediately.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 482.44
+    },
+    {
+      "i": 103,
+      "start": 487.48,
+      "end": 496.44,
+      "text": "Not because I suddenly had better ideas, but because I could finally communicate in a way that was resonating.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 487.48
+    },
+    {
+      "i": 104,
+      "start": 495.21,
+      "end": 504.96,
+      "text": "So, just this one change not only changed how I communicated, but more importantly how I was perceived.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 495.21
+    },
+    {
+      "i": 105,
+      "start": 502.44,
+      "end": 510.28,
+      "text": "And just know that communications isn't just the words you say, it's how you say it.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 502.44
+    },
+    {
+      "i": 106,
+      "start": 508.023,
+      "end": 516.2,
+      "text": "And your tone of voice including those five elements can help get you there.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 508.023
+    },
+    {
+      "i": 107,
+      "start": 513.719,
+      "end": 517.787,
+      "text": "Which brings me to my next point.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 513.719
+    },
+    {
+      "i": 108,
+      "start": 516.2,
+      "end": 525.839,
+      "text": "The third thing that I did that completely transformed my communication skills was treating public speaking like it was a",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 516.2
+    },
+    {
+      "i": 109,
+      "start": 523.0,
+      "end": 526.973,
+      "text": "skill I could actually train.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 523.0
+    },
+    {
+      "i": 110,
+      "start": 525.839,
+      "end": 529.9,
+      "text": "And by the way, that changed everything.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 525.839
+    },
+    {
+      "i": 111,
+      "start": 528.48,
+      "end": 531.16,
+      "text": "Here's a question for you.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 528.48
+    },
+    {
+      "i": 112,
+      "start": 530.35,
+      "end": 537.12,
+      "text": "What is one skill that Warren Buffett says can increase your value by over 50%?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 530.35
+    },
+    {
+      "i": 113,
+      "start": 535.64,
+      "end": 539.16,
+      "text": "Public speaking.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 535.64
+    },
+    {
+      "i": 114,
+      "start": 537.12,
+      "end": 546.08,
+      "text": "And that is exactly why this third point is so important because I wish someone told me this earlier in my career.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 537.12
+    },
+    {
+      "i": 115,
+      "start": 543.48,
+      "end": 548.839,
+      "text": "Public speaking is not talent, it's a skill.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 543.48
+    },
+    {
+      "i": 116,
+      "start": 546.94,
+      "end": 556.64,
+      "text": "And like any skill, it can be practiced, studied, and improved if you're willing to be honest with yourself about where you actually are",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 546.94
+    },
+    {
+      "i": 117,
+      "start": 554.8,
+      "end": 561.16,
+      "text": "right now. You know, I remember the first time I saw myself giving a presentation.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 554.8
+    },
+    {
+      "i": 118,
+      "start": 560.148,
+      "end": 564.36,
+      "text": "Let me tell you, it was so awkward.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 560.148
+    },
+    {
+      "i": 119,
+      "start": 562.383,
+      "end": 570.76,
+      "text": "I was pacing back and forth, I was talking so fast, and my hands, I literally did not know what to do with them.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 562.383
+    },
+    {
+      "i": 120,
+      "start": 569.225,
+      "end": 578.68,
+      "text": "So, they were just hovering around awkwardly, and I was so uncomfortable watching it.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 569.225
+    },
+    {
+      "i": 121,
+      "start": 575.6,
+      "end": 579.639,
+      "text": "But here's what I did.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 575.6
+    },
+    {
+      "i": 122,
+      "start": 579.639,
+      "end": 582.76,
+      "text": "I kept watching.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 579.639
+    },
+    {
+      "i": 123,
+      "start": 578.68,
+      "end": 585.16,
+      "text": "And I started to audit what I was doing.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 578.68
+    },
+    {
+      "i": 124,
+      "start": 582.76,
+      "end": 585.284,
+      "text": "Why did I rush?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 582.76
+    },
+    {
+      "i": 125,
+      "start": 585.16,
+      "end": 588.48,
+      "text": "Why did I lose eye contact?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 585.16
+    },
+    {
+      "i": 126,
+      "start": 586.35,
+      "end": 590.96,
+      "text": "Where did my energy just drop?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 586.35
+    },
+    {
+      "i": 127,
+      "start": 588.48,
+      "end": 595.52,
+      "text": "Which sentence landed and which one just kind of like floated away?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 588.48
+    },
+    {
+      "i": 128,
+      "start": 593.32,
+      "end": 596.311,
+      "text": "And then I made a decision.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 593.32
+    },
+    {
+      "i": 129,
+      "start": 595.52,
+      "end": 601.686,
+      "text": "I was going to make one small adjustment the next time I had to give a presentation.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 595.52
+    },
+    {
+      "i": 130,
+      "start": 600.04,
+      "end": 611.0,
+      "text": "And I kind of made it like a challenge where I would say, \"Okay, I have a presentation coming up today and I'm going to deliberately speak",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 600.04
+    },
+    {
+      "i": 131,
+      "start": 608.24,
+      "end": 617.68,
+      "text": "slower more than I think I need to.\" I remember I even put a post-it note on my notebook so I would remember because",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 608.24
+    },
+    {
+      "i": 132,
+      "start": 614.84,
+      "end": 618.825,
+      "text": "this visualization actually helped.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 614.84
+    },
+    {
+      "i": 133,
+      "start": 617.68,
+      "end": 622.56,
+      "text": "And I made this improvement kind of like a game.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 617.68
+    },
+    {
+      "i": 134,
+      "start": 620.036,
+      "end": 624.72,
+      "text": "It was a small change, a small improvement.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 620.036
+    },
+    {
+      "i": 135,
+      "start": 623.96,
+      "end": 633.44,
+      "text": "And I will tell you the results were not crazy dramatic overnight, but they were consistent.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 623.96
+    },
+    {
+      "i": 136,
+      "start": 630.16,
+      "end": 632.86,
+      "text": "And that compounded.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 630.16
+    },
+    {
+      "i": 137,
+      "start": 632.86,
+      "end": 641.48,
+      "text": "In fact, what I was doing with this practice is what psychologists call deliberate practice.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 632.86
+    },
+    {
+      "i": 138,
+      "start": 639.16,
+      "end": 650.76,
+      "text": "Psychologist Anders Ericsson spent decades studying how people develop expertise and what he found was that it's not the amount of time you put in",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 639.16
+    },
+    {
+      "i": 139,
+      "start": 647.839,
+      "end": 651.54,
+      "text": "that makes you better.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 647.839
+    },
+    {
+      "i": 140,
+      "start": 650.76,
+      "end": 656.839,
+      "text": "It's the quality of focused, feedback-driven repetition.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 650.76
+    },
+    {
+      "i": 141,
+      "start": 654.4,
+      "end": 665.72,
+      "text": "His research showed that top performers in virtually every field, musicians, chess players, surgeons, they didn't just practice more, they practiced",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 654.4
+    },
+    {
+      "i": 142,
+      "start": 662.96,
+      "end": 664.707,
+      "text": "specifically.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 662.96
+    },
+    {
+      "i": 143,
+      "start": 664.707,
+      "end": 670.001,
+      "text": "They isolated it and they worked on it over and over again.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 664.707
+    },
+    {
+      "i": 144,
+      "start": 668.2,
+      "end": 671.594,
+      "text": "And that's exactly what you can do.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 668.2
+    },
+    {
+      "i": 145,
+      "start": 670.52,
+      "end": 678.737,
+      "text": "Public speaking is one of the best ways, by the way, to be seen as a leader because most people don't want to do it.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 670.52
+    },
+    {
+      "i": 146,
+      "start": 677.16,
+      "end": 687.6,
+      "text": "So I guarantee if you become a great public speaker and you do it well, you immediately position yourself above everyone else on your team, even within",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 677.16
+    },
+    {
+      "i": 147,
+      "start": 685.56,
+      "end": 687.44,
+      "text": "your own company.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 685.56
+    },
+    {
+      "i": 148,
+      "start": 687.44,
+      "end": 693.24,
+      "text": "In fact, there's something deeply psychological about being seen in the position of a presenter.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 687.44
+    },
+    {
+      "i": 149,
+      "start": 692.32,
+      "end": 698.24,
+      "text": "It shows that you're not only good at your job, but you're articulate.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 692.32
+    },
+    {
+      "i": 150,
+      "start": 696.04,
+      "end": 701.6,
+      "text": "And that, by the way, is a secret sauce to career success.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 696.04
+    },
+    {
+      "i": 151,
+      "start": 700.04,
+      "end": 705.44,
+      "text": "And by the way, here's another piece of research that I love about this.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 700.04
+    },
+    {
+      "i": 152,
+      "start": 703.2,
+      "end": 713.88,
+      "text": "It's called self-modeling, like visualizing yourself as a great speaker, because that can also help you become a better communicator.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 703.2
+    },
+    {
+      "i": 153,
+      "start": 711.8,
+      "end": 719.12,
+      "text": "Research shows that seeing yourself executing on these things can change the way you perceive yourself.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 711.8
+    },
+    {
+      "i": 154,
+      "start": 718.6,
+      "end": 726.8,
+      "text": "So, if you start to see yourself differently, and when you start to perform in that way, that's actually who you become.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 718.6
+    },
+    {
+      "i": 155,
+      "start": 724.88,
+      "end": 732.2,
+      "text": "So, I guarantee if you focus on this one area, you can 100 times accelerate your growth.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 724.88
+    },
+    {
+      "i": 156,
+      "start": 730.574,
+      "end": 738.168,
+      "text": "And I think Warren Buffett would agree with this compounding effect, which brings me to my next point.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 730.574
+    },
+    {
+      "i": 157,
+      "start": 736.76,
+      "end": 746.92,
+      "text": "The fourth thing I did that completely transformed my communication skills was stopping waiting to be noticed, and starting to",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 736.76
+    },
+    {
+      "i": 158,
+      "start": 744.88,
+      "end": 748.2,
+      "text": "make myself visible.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 744.88
+    },
+    {
+      "i": 159,
+      "start": 746.92,
+      "end": 752.827,
+      "text": "This is the one I'm almost kind of embarrassed to admit, because it took me a really long time to learn.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 746.92
+    },
+    {
+      "i": 160,
+      "start": 752.0,
+      "end": 762.16,
+      "text": "For the first several years of my career, I genuinely believed that if I worked hard enough, the right people would just notice, that the quality of my work",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 752.0
+    },
+    {
+      "i": 161,
+      "start": 759.839,
+      "end": 763.442,
+      "text": "would just speak for itself.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 759.839
+    },
+    {
+      "i": 162,
+      "start": 762.16,
+      "end": 771.2,
+      "text": "But time and time again, I watched myself get overlooked and overshadowed by my colleagues who were definitely not",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 762.16
+    },
+    {
+      "i": 163,
+      "start": 768.56,
+      "end": 774.48,
+      "text": "smarter than me, and certainly not more hard working.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 768.56
+    },
+    {
+      "i": 164,
+      "start": 773.02,
+      "end": 780.64,
+      "text": "In fact, the moment that I really just realized this and broke down was a story that I wrote in my book Smart Not Loud.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 773.02
+    },
+    {
+      "i": 165,
+      "start": 780.018,
+      "end": 783.58,
+      "text": "If you've read my book, you'll know what I'm talking about.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 780.018
+    },
+    {
+      "i": 166,
+      "start": 782.48,
+      "end": 787.503,
+      "text": "This was when I was working at the NBC station in Reno, Nevada.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 782.48
+    },
+    {
+      "i": 167,
+      "start": 786.96,
+      "end": 795.19,
+      "text": "And one day, my manager announced that one reporter at our office would get to fly with the US Air Force Thunderbirds.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 786.96
+    },
+    {
+      "i": 168,
+      "start": 794.08,
+      "end": 802.014,
+      "text": "They're basically an elite air demonstration squadron that travels from city to city, and they put on these air shows.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 794.08
+    },
+    {
+      "i": 169,
+      "start": 800.44,
+      "end": 806.72,
+      "text": "And as part of their PR campaign, they were going to let one reporter fly with them.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 800.44
+    },
+    {
+      "i": 170,
+      "start": 805.72,
+      "end": 812.28,
+      "text": "Now, if this was you, would you raise your hand for that opportunity?",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 805.72
+    },
+    {
+      "i": 171,
+      "start": 810.68,
+      "end": 816.72,
+      "text": "I thought this was the coolest thing ever, so I did.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 810.68
+    },
+    {
+      "i": 172,
+      "start": 814.12,
+      "end": 820.0,
+      "text": "My boss saw me and said, \"Okay, Jessica, we'll get you a media pass.\"",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 814.12
+    },
+    {
+      "i": 173,
+      "start": 818.56,
+      "end": 827.72,
+      "text": "Now, a few days pass and it's the day before the air show and we're all sitting in our morning meeting when my manager goes, \"All right, the",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 818.56
+    },
+    {
+      "i": 174,
+      "start": 825.32,
+      "end": 830.28,
+      "text": "Thunderbirds, that story is happening tomorrow.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 825.32
+    },
+    {
+      "i": 175,
+      "start": 828.95,
+      "end": 832.64,
+      "text": "Well, Bella, you get to do it.\"",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 828.95
+    },
+    {
+      "i": 176,
+      "start": 833.169,
+      "end": 839.882,
+      "text": ">> [snorts] >> My gosh, I can't even describe that feeling of when I heard that.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 833.169
+    },
+    {
+      "i": 177,
+      "start": 839.12,
+      "end": 845.477,
+      "text": "Because I remember it was like the whole room stopped and I was just sitting there.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 839.12
+    },
+    {
+      "i": 178,
+      "start": 842.72,
+      "end": 852.72,
+      "text": "My heart sank to the pit of my stomach and my manager just kind of went on with that meeting like nothing unusual",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 842.72
+    },
+    {
+      "i": 179,
+      "start": 849.32,
+      "end": 850.561,
+      "text": "happened.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 849.32
+    },
+    {
+      "i": 180,
+      "start": 850.561,
+      "end": 860.36,
+      "text": "Well, it bothered me so much that at the end of the meeting, I courageously decided to ask him what happened and I will never forget what he",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 850.561
+    },
+    {
+      "i": 181,
+      "start": 859.28,
+      "end": 862.644,
+      "text": "says.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 859.28
+    },
+    {
+      "i": 182,
+      "start": 860.36,
+      "end": 866.84,
+      "text": "He goes, >> [snorts and clears throat] >> \"Oh my gosh, Jessica, I'm so sorry.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 860.36
+    },
+    {
+      "i": 183,
+      "start": 865.6,
+      "end": 868.84,
+      "text": "I completely forgot you mentioned you wanted to do it.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 865.6
+    },
+    {
+      "i": 184,
+      "start": 868.656,
+      "end": 874.04,
+      "text": "It was just that Bella, she kept talking about it and she was top of mind.\"",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 868.656
+    },
+    {
+      "i": 185,
+      "start": 874.2,
+      "end": 880.2,
+      "text": "Top of mind.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 874.2
+    },
+    {
+      "i": 186,
+      "start": 876.0,
+      "end": 882.52,
+      "text": "Now, my colleague, Bella, she was great.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 876.0
+    },
+    {
+      "i": 187,
+      "start": 880.2,
+      "end": 885.435,
+      "text": "It wasn't that she was better than me or that she was smarter.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 880.2
+    },
+    {
+      "i": 188,
+      "start": 884.92,
+      "end": 889.8,
+      "text": "What she did though was what I didn't do.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 884.92
+    },
+    {
+      "i": 189,
+      "start": 887.24,
+      "end": 894.96,
+      "text": "She was great at making sure that she stayed top of mind for the things that she wanted.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 887.24
+    },
+    {
+      "i": 190,
+      "start": 893.847,
+      "end": 903.839,
+      "text": "Because I will tell you, during those days before the air show, I had thought about reminding my manager that I wanted to do it, but I didn't do",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 893.847
+    },
+    {
+      "i": 191,
+      "start": 900.56,
+      "end": 907.548,
+      "text": "that because I assumed asking one time was going to be enough.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 900.56
+    },
+    {
+      "i": 192,
+      "start": 906.12,
+      "end": 917.76,
+      "text": "I assumed reminding him would be bothering him and I was basically creating this negative narrative in my own head of the worst-case scenario if I kept",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 906.12
+    },
+    {
+      "i": 193,
+      "start": 914.76,
+      "end": 919.36,
+      "text": "communicating what I wanted.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 914.76
+    },
+    {
+      "i": 194,
+      "start": 917.76,
+      "end": 924.68,
+      "text": "I share with you this story because this experience truly changed everything for me.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 917.76
+    },
+    {
+      "i": 195,
+      "start": 922.56,
+      "end": 932.44,
+      "text": "I realized that if I didn't learn how to build strategic visibility around my work and what I wanted, how many more opportunities like this would just pass",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 922.56
+    },
+    {
+      "i": 196,
+      "start": 931.28,
+      "end": 934.44,
+      "text": "me by.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 931.28
+    },
+    {
+      "i": 197,
+      "start": 932.44,
+      "end": 938.346,
+      "text": "And by the way, there's a lot of great research that backs this up.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 932.44
+    },
+    {
+      "i": 198,
+      "start": 937.32,
+      "end": 939.88,
+      "text": "Visibility is not vanity.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 937.32
+    },
+    {
+      "i": 199,
+      "start": 939.397,
+      "end": 941.92,
+      "text": "It's a strategy.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 939.397
+    },
+    {
+      "i": 200,
+      "start": 939.88,
+      "end": 949.32,
+      "text": "Psychologists Adam Grant and Wharton has written extensively about how the most influential people at work consistently",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 939.88
+    },
+    {
+      "i": 201,
+      "start": 946.56,
+      "end": 957.72,
+      "text": "share their knowledge, are enthusiastic, share their ideas not to show off, but to stay connected and relevant in the",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 946.56
+    },
+    {
+      "i": 202,
+      "start": 954.44,
+      "end": 960.36,
+      "text": "minds of people who make decisions.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 954.44
+    },
+    {
+      "i": 203,
+      "start": 957.72,
+      "end": 967.12,
+      "text": "Research in cognitive psychology also helped me reframe this because studies show that people need to hear",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 957.72
+    },
+    {
+      "i": 204,
+      "start": 964.56,
+      "end": 970.52,
+      "text": "information five to seven times before it resonates.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 964.56
+    },
+    {
+      "i": 205,
+      "start": 968.885,
+      "end": 976.64,
+      "text": "So, that means following up and building visibility isn't about being annoying.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 968.885
+    },
+    {
+      "i": 206,
+      "start": 973.88,
+      "end": 979.2,
+      "text": "It's just how human memory functions.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 973.88
+    },
+    {
+      "i": 207,
+      "start": 976.64,
+      "end": 980.6,
+      "text": "So, for you, here's what you need to do.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 976.64
+    },
+    {
+      "i": 208,
+      "start": 979.2,
+      "end": 983.44,
+      "text": "Say the thing.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 979.2
+    },
+    {
+      "i": 209,
+      "start": 980.6,
+      "end": 982.225,
+      "text": "Say it again.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 980.6
+    },
+    {
+      "i": 210,
+      "start": 982.225,
+      "end": 987.36,
+      "text": "In an email, in a meeting, in a hallway, in a conversation, in a follow-up.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 982.225
+    },
+    {
+      "i": 211,
+      "start": 986.833,
+      "end": 997.008,
+      "text": "It doesn't have to be the same way every time, but consistently enough so that people know who you are, what you stand for, what you want.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 986.833
+    },
+    {
+      "i": 212,
+      "start": 995.0,
+      "end": 1004.16,
+      "text": "And I guarantee it keeps you top of mind for the bigger and better opportunities because here's what I want you to know.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 995.0
+    },
+    {
+      "i": 213,
+      "start": 1002.36,
+      "end": 1011.244,
+      "text": "The journey to becoming a better communicator isn't about finding a magic phrase or perfecting your posture.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1002.36
+    },
+    {
+      "i": 214,
+      "start": 1009.36,
+      "end": 1019.12,
+      "text": "For me, it was about unlearning these four things that I had been getting wrong for years and working on the things that",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 1009.36
+    },
+    {
+      "i": 215,
+      "start": 1016.56,
+      "end": 1019.68,
+      "text": "actually moved the needle.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1016.56
+    },
+    {
+      "i": 216,
+      "start": 1019.12,
+      "end": 1025.92,
+      "text": "I stopped trying to sound impressive and started thinking about what others needed to hear.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1019.12
+    },
+    {
+      "i": 217,
+      "start": 1023.48,
+      "end": 1033.839,
+      "text": "I learned that how I said something was just as important as what I said and I started treating public speaking like a",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 1023.48
+    },
+    {
+      "i": 218,
+      "start": 1030.28,
+      "end": 1036.64,
+      "text": "skill I could improve because it can be.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1030.28
+    },
+    {
+      "i": 219,
+      "start": 1033.839,
+      "end": 1042.319,
+      "text": "And I stopped waiting to be noticed and started showing up consistently and visibly.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1033.839
+    },
+    {
+      "i": 220,
+      "start": 1040.12,
+      "end": 1044.52,
+      "text": "None of these changes required me to be louder.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1040.12
+    },
+    {
+      "i": 221,
+      "start": 1043.354,
+      "end": 1047.64,
+      "text": "None of it required me to be someone I wasn't.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1043.354
+    },
+    {
+      "i": 222,
+      "start": 1047.291,
+      "end": 1051.663,
+      "text": "It just required me to be smarter in my approach.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1047.291
+    },
+    {
+      "i": 223,
+      "start": 1051.04,
+      "end": 1057.36,
+      "text": "And that is exactly what my book Smart Not Loud is all about.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1051.04
+    },
+    {
+      "i": 224,
+      "start": 1055.08,
+      "end": 1064.76,
+      "text": "If this resonated with you, share this video with someone in your life who deserves to be heard more in rooms that",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 1055.08
+    },
+    {
+      "i": 225,
+      "start": 1061.76,
+      "end": 1067.695,
+      "text": "they are in because I guarantee they already have what it takes.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1061.76
+    },
+    {
+      "i": 226,
+      "start": 1067.6,
+      "end": 1073.68,
+      "text": "Now, if you want to go deeper on any of these things, my book Smart Not Loud is linked below.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1067.6
+    },
+    {
+      "i": 227,
+      "start": 1072.373,
+      "end": 1082.84,
+      "text": "And if you want the notes that come with the book for free, comment the word smart below and I will send them to you directly.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1072.373
+    },
+    {
+      "i": 228,
+      "start": 1080.68,
+      "end": 1091.6,
+      "text": "Don't forget, if you liked this video, if you enjoyed this video, if you found it helpful, be sure to subscribe and like because that is how you will get",
+      "overlap": true,
+      "ends_on_punct": false,
+      "_s0": 1080.68
+    },
+    {
+      "i": 229,
+      "start": 1089.48,
+      "end": 1098.998,
+      "text": "notified of all our future videos coming out to help you get promoted, build visibility, and of course, communicate with confidence.",
+      "overlap": true,
+      "ends_on_punct": true,
+      "_s0": 1089.48
+    }
+  ],
+  "speeds": [
+    {
+      "rate": 1,
+      "file": "slow/speech_1p00.m4a",
+      "duration": 1101.095
+    },
+    {
+      "rate": 0.75,
+      "file": "slow/speech_0p75.m4a",
+      "duration": 1468.111
+    },
+    {
+      "rate": 0.6,
+      "file": "slow/speech_0p60.m4a",
+      "duration": 1835.142
+    },
+    {
+      "rate": 0.5,
+      "file": "slow/speech_0p50.m4a",
+      "duration": 2202.167
+    }
+  ],
+  "source": {
+    "kind": "auto",
+    "cues": 479,
+    "sentences": 231,
+    "median_sentence_sec": 6.08
+  }
+}
