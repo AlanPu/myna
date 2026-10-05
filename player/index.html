@@ -114,6 +114,31 @@
   .chip{display:inline-block;padding:2px 8px;border-radius:99px;font-size:11px;
         background:#1d2635;color:var(--dim);margin-right:6px}
   .chip.g{background:#3a2f10;color:var(--warn)}
+
+  /* ---- shadowing score -------------------------------------------------- */
+  button.mic.on{background:#ef4444;color:#fff;animation:pulse 1.3s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.62}}
+  .scored{margin-top:14px;border:1px solid var(--line);border-radius:11px;
+          padding:13px 15px;background:#10151e}
+  .scored[hidden]{display:none!important}
+  .scored .top{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap}
+  .big{font-size:31px;font-weight:700;letter-spacing:-.02em;
+       font-variant-numeric:tabular-nums;line-height:1}
+  .big.g{color:var(--accent)} .big.y{color:var(--warn)} .big.r{color:#f87171}
+  .metrics{display:flex;gap:16px;flex-wrap:wrap;margin-left:auto}
+  .metric{font-size:12px;color:var(--dim);line-height:1.5}
+  .metric b{display:block;color:var(--fg);font-size:14px;
+            font-variant-numeric:tabular-nums;font-weight:600}
+  .why{color:var(--dim);font-size:12.5px;margin-top:9px;line-height:1.65}
+  .why .missed{color:#f87171}
+  .why .late{color:var(--warn)}
+  /* per-word verdict classes, applied to .cue .w */
+  .cue .w.ok{color:var(--accent)}
+  .cue .w.missed{color:#f87171;text-decoration:underline;
+                 text-decoration-style:wavy;text-underline-offset:3px}
+  .cue .w.late{color:var(--warn)}
+  .cue .w.verdict{font-weight:700}
+  .scorenote{color:var(--dim);font-size:12px;margin-top:8px}
 </style>
 </head>
 <body>
@@ -157,6 +182,7 @@
       <button id="play">▶ 播放</button>
       <button class="ghost" id="rep">↻ 重听本句</button>
       <button class="ghost" id="loopBtn">🔁 循环跟读本句</button>
+      <button class="ghost mic" id="micBtn">🎤 录音跟读</button>
       <div class="scrub">
         <span class="t" id="t0">0.00</span>
         <div class="track" id="track">
@@ -170,6 +196,16 @@
       <span class="lbl">跟读速度</span>
       <div id="speeds" class="speeds"></div>
       <span class="spnote" id="spnote">原速</span>
+    </div>
+
+    <div class="scored" id="scored" hidden>
+      <div class="top">
+        <span class="big" id="sBig">--</span>
+        <span class="spnote" id="sLabel">跟读相似度</span>
+        <div class="metrics" id="sMetrics"></div>
+      </div>
+      <div class="why" id="sWhy"></div>
+      <div class="scorenote" id="sNote"></div>
     </div>
 
     <div class="legend">
@@ -412,7 +448,7 @@ function build() {
     `<b style="color:${src.kind==='auto'?'#fbbf24':'#5eead4'}">` +
     `${src.kind==='auto'?'自动生成':'人工'}</b>` +
     ` · 原速 ${fmt(M.duration)}s,` +
-    `快捷键:空格播放 / L 循环 / R 重听`;
+    `快捷键:空格播放 / L 循环 / R 重听 / V 录音跟读`;
   document.getElementById('stageinfo').textContent = '正在聆听 · 慢速跟读';
 
   // speed buttons
@@ -447,6 +483,13 @@ function build() {
     // Jumping to a line is a request to leave the repeated one; without this
     // the loop's 30ms poll keeps seeking back and the click does nothing.
     if (loop) stopLoop();
+    // Moving to another sentence retires the previous verdict: the coloured
+    // words belong to the line the user was just reading, and the score panel
+    // describes a take of that line only.
+    if (VERDICT && VERDICT.index !== +r.dataset.i) {
+      clearVerdicts();
+      scored.hidden = true;
+    }
     seekOrig(c.start + 0.01);
     if (typeof ensureRunning === 'function') ensureRunning();
     if (A.paused) A.play();
@@ -518,8 +561,15 @@ function tick(tMedia) {
   const i = idxAtOrig(tOrig);
   const nowEl = document.getElementById('now');
   // While looping, the indicator must report the repeated sentence, not
-  // whatever idxAtOrig() infers from a playhead sitting in a caption gap.
-  const shown = loop && loopIndex >= 0 ? loopIndex : i;
+  // whatever idxAtOrig() infers from a playhead sitting in a caption gap. A
+  // take in progress pins the same line, because the loop is stopped then, and
+  // a scored sentence stays pinned until the user moves on — otherwise the
+  // caption slides off the sentence the verdict describes the moment the take
+  // ends.
+  const pinned = micIndex >= 0 ? micIndex
+    : (VERDICT && VERDICT.index >= 0 ? VERDICT.index : -1);
+  const shown = loop && loopIndex >= 0 ? loopIndex
+    : (pinned >= 0 ? pinned : i);
   if (nowEl) {
     nowEl.innerHTML = shown >= 0
       ? `第 <b>${shown + 1}</b> / ${M.captions.length} 句 · <b>${fmt(tOrig)}</b>s`
@@ -537,13 +587,27 @@ function tick(tMedia) {
   // While looping, the display must stay on the sentence being repeated even
   // if the playhead wanders past its end: idxAtOrig() would otherwise advance
   // to the next line and the highlight would follow audio that is not playing.
-  const show = loop && loopIndex >= 0 ? loopIndex : i;
+  // micIndex pins the line the same way while a take is in progress, since the
+  // loop is stopped during recording and would otherwise let the display drift.
+  const shown2 = loop && loopIndex >= 0 ? loopIndex
+    : (micIndex >= 0 ? micIndex
+       : (VERDICT && VERDICT.index >= 0 ? VERDICT.index : i));
+  const show = shown2;
   if (show < 0) { cue.textContent = ''; return; }
   const seg = M.captions[show];
   const words = seg.text.split(/\s+/).filter(Boolean);
   const lit = countLit(seg, words.length, tOrig);
-  cue.innerHTML = words.map((w, k) =>
-    `<span class="w${k < lit ? ' on' : ''}">${escapeHtml(w)}</span>`).join(' ');
+  // Verdicts belong to the sentence that was just scored, not to whatever is
+  // on screen now: moving to another line clears them rather than painting a
+  // stranger's mistakes onto it.
+  const vw = (VERDICT && VERDICT.index === show)
+    ? (VERDICT.per_word || VERDICT) : null;
+  cue.innerHTML = words.map((w, k) => {
+    const v = vw && vw[k];
+    const cls = 'w' + (k < lit ? ' on' : '')
+      + (v && v.status !== 'ok' ? ' ' + v.status + ' verdict' : '');
+    return `<span class="${cls}">${escapeHtml(w)}</span>`;
+  }).join(' ');
 }
 
 // How many words should be lit at tOrig.
@@ -621,6 +685,245 @@ function countLit(seg, n, tOrig) {
     if (m[k] <= tOrig) lit = k + 1; else break;
   }
   return Math.max(0, Math.min(n, lit));
+}
+
+// ---------------------------------------------------------------- shadowing
+// Records one take of the current sentence and asks the server how close it
+// was. There is no speech recognition: the server reduces both signals to
+// syllable peaks and aligns them, so this only has to capture audio well and
+// report the verdict.
+//
+// The flow is listen-then-speak, not record-then-listen. The original plays
+// once, the microphone opens only after it finishes, and the recording starts
+// immediately. That ordering matters for the score: the server is told where in
+// the recording the sentence was supposed to begin, so the natural "press the
+// button a beat late" hesitation is trimmed away instead of being charged as a
+// slow start.
+const micBtn = document.getElementById('micBtn');
+const scored = document.getElementById('scored');
+let mediaRec = null, micStream = null, micChunks = null;
+let micState = 'idle';          // idle | playing | recording | scoring
+let micIndex = -1, micT0 = 0, micStartedAt = 0;
+
+const REC_MAX_MS = 20000;       // hard stop: a take is one sentence
+
+function setMicState(s) {
+  micState = s;
+  micBtn.classList.toggle('on', s === 'recording');
+  micBtn.textContent = {
+    idle: '🎤 录音跟读',
+    playing: '🔊 播放原声…',
+    recording: '⏹ 录音中,再点一次结束',
+    scoring: '⏳ 评分中…',
+  }[s];
+  micBtn.disabled = (s === 'playing' || s === 'scoring');
+}
+
+async function micStart() {
+  // Prefer the sentence the display is already showing. idxAtOrig() infers a
+  // sentence from the playhead, and a playhead sitting in the gap between two
+  // lines belongs to the previous one — recording it there scored the take
+  // against the wrong reference entirely (index 0 instead of 12).
+  const shownNow = loop && loopIndex >= 0 ? loopIndex
+    : (cur >= 0 ? cur : idxAtOrig(A.currentTime * speed));
+  const i = shownNow;
+  if (i < 0) { flash('先选中一句再录音'); return; }
+  if (!navigator.mediaDevices || !window.MediaRecorder) {
+    flash('这个浏览器不支持录音'); return;
+  }
+  micIndex = i;
+  setMicState('playing');
+
+  // Leave the loop running for the duration of the take, but it has to stop
+  // polling while the original plays. runLoopStep() seeks back to the span
+  // start every 30ms, so the sentence can never reach its own end and the
+  // wait below never resolves — the button sat on "playing" forever.
+  const sp = loopSpan(i);
+  if (loop) stopLoop();
+  if (!A.paused) A.pause();
+
+  try {
+    await micRun(sp);
+  } catch (e) {
+    // The reason is surfaced, not just the state reset: a silent catch here
+    // turned a ReferenceError into a button that did nothing at all.
+    console.error('mic flow failed:', e);
+    flash('录音失败:' + ((e && e.message) || e));
+    setMicState('idle');
+  }
+}
+
+// Play the sentence once, then record the attempt.
+async function micRun(sp) {
+  seekOrig(sp.a + 0.01);
+  // ensureRunning is declared inside bind(), not at the top level, so it is
+  // guarded like every other caller does. Calling it bare threw a ReferenceError
+  // that micStart's catch swallowed, leaving the button on "playing" forever.
+  if (typeof ensureRunning === 'function') ensureRunning();
+  await A.play().catch(() => {});
+
+  // Wait for the sentence to finish. This listens to `ended` and also polls,
+  // because the seek may land near the end of a speed variant and never
+  // produce a natural end event.
+  await new Promise(res => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearInterval(t);
+      A.removeEventListener('timeupdate', onT);
+      A.removeEventListener('ended', onE);
+      A.pause();
+      res();
+    };
+    const onE = () => finish();
+    const onT = () => { if (A.currentTime * speed >= sp.b - 0.02) finish(); };
+    const t = setInterval(onT, 30);
+    A.addEventListener('timeupdate', onT);
+    A.addEventListener('ended', onE, { once: true });
+    // The sentence could already be past its end if the seek clamped.
+    if (A.currentTime * speed >= sp.b - 0.02) finish();
+  });
+
+  // The microphone opens only now, so it never records the original.
+  micStream = await navigator.mediaDevices.getUserMedia({
+    audio: { echoCancellation: true, noiseSuppression: true,
+             autoGainControl: true }
+  });
+
+  // Pick a container the browser will actually produce. Safari only does mp4;
+  // everything else does WebM. The server's ffmpeg reads both.
+  const types = ['audio/webm;codecs=opus', 'audio/webm',
+                 'audio/mp4;codecs=mp4a.40.2', 'audio/mp4'];
+  const mime = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+  micRec = mime ? new MediaRecorder(micStream, { mimeType: mime })
+                : new MediaRecorder(micStream);
+
+  micChunks = [];
+  micRec.ondataavailable = e => { if (e.data && e.data.size) micChunks.push(e.data); };
+  micRec.onstop = micFinish;
+
+  setMicState('recording');
+  micT0 = 0;                        // recording begins now, by construction
+  micStartedAt = performance.now();
+  micRec.start();
+  micTimer = setTimeout(micStop, REC_MAX_MS);
+}
+
+let micTimer = null;
+
+function micStop() {
+  if (micRec && micRec.state !== 'inactive') micRec.stop();
+}
+
+function micFinish() {
+  clearTimeout(micTimer);
+  if (micStream) { micStream.getTracks().forEach(t => t.stop()); micStream = null; }
+  const blob = new Blob(micChunks, { type: (micRec && micRec.mimeType) || 'audio/webm' });
+  setMicState('scoring');
+  micSend(blob, micIndex, micT0);
+}
+
+async function micSend(blob, index, t0) {
+  try {
+    if (blob.size < 1200) { flash('录音太短,没有听到声音'); setMicState('idle'); return; }
+    const buf = await blob.arrayBuffer();
+    let bin = '';
+    const bytes = new Uint8Array(buf);
+    // Chunked so a large recording does not blow the argument limit.
+    for (let i = 0; i < bytes.length; i += 8192) {
+      bin += String.fromCharCode.apply(null, bytes.subarray(i, i + 8192));
+    }
+    const r = await fetch('/api/score', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ index, t0, audio: btoa(bin) })
+    });
+    const j = await r.json();
+    if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    paintScore(j);
+  } catch (e) {
+    flash('评分失败:' + (e && e.message || e));
+  } finally {
+    setMicState('idle');
+    // Release the line, but only after paintScore has read it: tick() needs
+    // micIndex to still point at the scored sentence so the verdict colours
+    // land on the right words.
+    micIndex = -1;
+    if (loop && loopIndex >= 0) tick(A.currentTime);
+  }
+}
+
+function paintScore(r) {
+  scored.hidden = false;
+  if (!r.ok) {
+    document.getElementById('sBig').textContent = '--';
+    document.getElementById('sMetrics').innerHTML = '';
+    document.getElementById('sWhy').textContent = r.note || '这次录音无法评分';
+    document.getElementById('sNote').textContent = '';
+    clearVerdicts();
+    return;
+  }
+
+  const big = document.getElementById('sBig');
+  big.textContent = Math.round(r.score);
+  big.className = 'big ' + (r.score >= 85 ? 'g' : r.score >= 65 ? 'y' : 'r');
+
+  const pct = v => (v == null ? '--' : Math.round(v) + '%');
+  const tempo = r.scale == null ? '--'
+    : Math.abs(r.scale - 1) < 0.06 ? '接近原速'
+    : r.scale > 1
+      ? `慢 ${Math.round((r.scale - 1) * 100)}%`
+      : `快 ${Math.round((1 - r.scale) * 100)}%`;
+  document.getElementById('sMetrics').innerHTML = [
+    ['节奏', pct(r.timing)],
+    ['完整度', pct(r.coverage)],
+    ['音节数', pct(r.density)],
+    ['语速', tempo],
+    ['起音', r.delay_ms == null ? '--'
+      : (r.delay_ms > 40 ? `晚 ${Math.round(r.delay_ms)}ms`
+         : r.delay_ms < -40 ? `早 ${Math.round(-r.delay_ms)}ms` : '准时')],
+  ].map(([k, v]) => `<span class="metric">${k}<b>${v}</b></span>`).join('');
+
+  const missed = (r.per_word || []).filter(w => w.status === 'missed');
+  const late = (r.per_word || []).filter(w => w.status === 'late');
+  const bits = [];
+  if (missed.length) {
+    bits.push('<span class="missed">未读出:' +
+      missed.map(w => esc(r.words[w.k])).join('、') + '</span>');
+  }
+  if (late.length) {
+    bits.push('<span class="late">位置偏差:' +
+      late.map(w => esc(r.words[w.k])).join('、') + '</span>');
+  }
+  if (!bits.length) bits.push('每个词都落在原声的位置上。');
+  document.getElementById('sWhy').innerHTML = bits.join('<br>');
+  document.getElementById('sNote').textContent = r.note || '';
+  markVerdicts(r.i != null ? r.i : micIndex, r.per_word || []);
+}
+
+// The verdict colours share the .cue word spans, so the highlight the user
+// watches and the score they are reading always describe the same words.
+//
+// The sentence a verdict belongs to stays pinned after the take ends. By then
+// the playhead sits past the end of the sentence, so re-deriving the line from
+// it would slide the caption to the next one and carry the coloured words
+// along with it. It is released only when the user moves to another sentence —
+// the one moment the old verdict stops describing what is on screen.
+let VERDICT = null;
+
+function markVerdicts(index, pw) {
+  VERDICT = (pw && pw.length) ? { index, per_word: pw } : null;
+  repaint();
+}
+function clearVerdicts() {
+  VERDICT = null;
+}
+
+// Redraw the caption. Split out of tick() so a verdict can be applied without
+// feeding the playhead back through the whole render path.
+function repaint() {
+  if (M && A) tick(A.currentTime);
 }
 
 // ---------------------------------------------------------------- loop
@@ -802,6 +1105,12 @@ function bind() {
   document.getElementById('loopBtn').onclick = () =>
     loop ? stopLoop() : startLoop();
 
+  micBtn.onclick = () => {
+    ensureRunning();
+    if (micState === 'recording') { micStop(); return; }
+    if (micState === 'idle') micStart();
+  };
+
   // seek bar
   const T = document.getElementById('track');
   const seek = ev => {
@@ -815,12 +1124,13 @@ function bind() {
   window.addEventListener('mouseup', () => drag = false);
   T.addEventListener('touchstart', e => seek(e.touches[0]), { passive: true });
 
-  // keyboard: space play/pause, L loop, R replay
+  // keyboard: space play/pause, L loop, R replay, V record
   window.addEventListener('keydown', e => {
     ensureRunning();
     if (e.code === 'Space') { e.preventDefault(); A.paused ? A.play() : A.pause(); }
     if (e.key === 'l' || e.key === 'L') loop ? stopLoop() : startLoop();
     if (e.key === 'r' || e.key === 'R') document.getElementById('rep').click();
+    if (e.key === 'v' || e.key === 'V') micBtn.click();
   });
 }
 

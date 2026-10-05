@@ -19,6 +19,13 @@ What each check proves
                   span, and sampled playback points where the highlight is
                   moving while the speaker is talking.
   verify_slow     the whole shadowing loop still works at 1x/0.75x/0.6x/0.5x.
+  verify_score    the shadowing metric separates a correct reading from injected
+                  defects: rushing, dragging, a dropped phrase, a noisy room,
+                  a late start, and capture latency that must NOT be charged to
+                  the speaker.
+  verify_e2e_score a real browser records a take with MediaRecorder, posts it,
+                  and the per-word verdicts reach the caption spans. The
+                  earlier checks could all pass with this path broken.
 
 Usage:
     .venv/bin/python check.py            # all checks
@@ -43,11 +50,17 @@ PORT = int(os.environ.get("MYNA_PORT", "8777"))
 URL = f"http://127.0.0.1:{PORT}/index.html"
 
 # name -> (script, needs browser?)
+# The two score checks start their own server: the e2e one drives a fake
+# microphone through a port nothing else uses, and the metric one needs no
+# server at all. Both are cheap, so they run with everything else rather than
+# being left to be remembered.
 CHECKS = [
     ("switch", "verify_switch.py", True),
     ("visual", "verify_visual.py", False),
     ("sync", "verify_sync.py", True),
     ("slow", "verify_slow.py", True),
+    ("score", "verify_score.py", False),
+    ("e2e-score", "verify_e2e_score.py", False),
 ]
 
 
@@ -126,7 +139,8 @@ def main() -> int:
         print(f"\n{len(failed)} check(s) failed: {', '.join(failed)}")
         print("Do not ship this build: the highlight will read as lagging.")
         return 1
-    print("\nall checks passed — the highlight tracks the voice")
+    print("\nall checks passed — the highlight tracks the voice, "
+          "and the score tracks the voice")
     return 0
 
 

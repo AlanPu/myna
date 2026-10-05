@@ -10,6 +10,8 @@ Endpoints
   POST /api/build            {url, start?, length?} -> rebuild, then reload
   GET  /api/build            the in-progress build's log
   GET  /api/now              the currently loaded video, for the default field
+  POST /api/score            {index, t0, audio} -> how close that take was
+  GET  /api/score?index=N    what the scorer needs for sentence N
 
 The build runs in a child process and streams its log, because a full rebuild
 downloads audio and renders four speed variants; that takes minutes and the
@@ -18,6 +20,7 @@ browser has to be able to show progress rather than freeze.
 
 from __future__ import annotations
 
+import base64
 import json
 import os
 import re
@@ -25,6 +28,7 @@ import subprocess
 import sys
 import threading
 import time
+import urllib.parse
 from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
@@ -134,6 +138,35 @@ def current() -> dict:
         return {"videoId": None, "title": None}
 
 
+# ------------------------------------------------------------------ scoring
+# A shadowing take is one sentence, so the upload is small; the cap exists so a
+# stray multi-megabyte POST cannot make the server decode minutes of audio.
+MAX_UPLOAD = 8 * 1024 * 1024
+
+# Scoring parses the recording and runs DTW. It is fast, but not free, and two
+# concurrent takes of the same sentence would just fight for the CPU.
+_score_lock = threading.Lock()
+
+
+def load_energy() -> dict:
+    return json.loads((PLAYER / "energy.json").read_text("utf-8"))
+
+
+def score_take(index: int, t0: float | None, blob: bytes) -> dict:
+    """Score an uploaded take of sentence `index`.
+
+    `t0` is where in the recording the user was supposed to start speaking,
+    which the browser knows because it ran the countdown. Without it the leading
+    silence of a hesitant take is charged to the reading as a late start.
+    """
+    import score as scorer
+    en = load_energy()
+    pcm = scorer.decode_bytes(blob)
+    if pcm.size < scorer.SR // 4:
+        return {"error": "录音太短"}
+    return scorer.score(en, pcm, index, t0=t0)
+
+
 class Handler(SimpleHTTPRequestHandler):
     def __init__(self, *a, **kw):
         super().__init__(*a, directory=str(PLAYER), **kw)
@@ -215,9 +248,76 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(200, {"running": running, "status": _state["status"],
                                     "log": _log[-400:], "rc": _state["rc"],
                                     **current()})
+        if self.path.startswith("/api/score"):
+            # What the browser needs to render a scored sentence: where its
+            # words begin, and how many reference syllables to expect.
+            q = urllib.parse.urlparse(self.path).query
+            idx = urllib.parse.parse_qs(q).get("index", ["0"])[0]
+            try:
+                import score as scorer
+                return self._json(200, scorer.ref_stats(load_energy(), int(idx)))
+            except Exception as e:
+                return self._json(400, {"error": f"句子序号无效:{e}"})
         return super().do_GET()
 
+    def _score(self) -> None:
+        """Score an uploaded take.
+
+        The recording arrives as base64 inside the JSON body rather than as
+        multipart/form-data: the payload is one short clip, the standard
+        library already parses JSON, and a hand-rolled multipart parser would
+        be more code than the whole endpoint.
+        """
+        n = int(self.headers.get("Content-Length") or 0)
+        if n > MAX_UPLOAD * 2:            # base64 inflates by 4/3
+            return self._json(413, {"error": "录音文件过大"})
+        try:
+            body = json.loads(self.rfile.read(n) or b"{}")
+        except Exception as e:
+            return self._json(400, {"error": f"bad json: {e}"})
+
+        b64 = body.get("audio") or ""
+        try:
+            index = int(body.get("index"))
+        except (TypeError, ValueError):
+            return self._json(400, {"error": "缺少句子序号"})
+        t0 = body.get("t0")
+        try:
+            t0 = float(t0) if t0 is not None else None
+        except (TypeError, ValueError):
+            t0 = None
+        if not b64:
+            return self._json(400, {"error": "没有收到录音"})
+
+        try:
+            blob = base64.b64decode(b64, validate=False)
+        except Exception:
+            return self._json(400, {"error": "录音数据损坏"})
+        if len(blob) > MAX_UPLOAD:
+            return self._json(413, {"error": "录音文件过大"})
+
+        # One at a time: scoring is CPU-bound and a second concurrent take would
+        # only slow both down.
+        if not _score_lock.acquire(blocking=False):
+            return self._json(409, {"error": "正在评分,请稍候"})
+        try:
+            r = score_take(index, t0, blob)
+        except IndexError as e:
+            return self._json(400, {"error": str(e)})
+        except ValueError as e:
+            return self._json(400, {"error": str(e)})
+        except Exception as e:
+            # ffmpeg failures and malformed audio land here; the client only
+            # needs to know the take could not be read.
+            print(f"score failed for sentence {index}: {e}", flush=True)
+            return self._json(400, {"error": "无法解析这段录音"})
+        finally:
+            _score_lock.release()
+        return self._json(200, r)
+
     def do_POST(self) -> None:
+        if self.path == "/api/score":
+            return self._score()
         if self.path != "/api/build":
             return self._json(404, {"error": "no such endpoint"})
         n = int(self.headers.get("Content-Length") or 0)

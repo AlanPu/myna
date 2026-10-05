@@ -52,13 +52,22 @@ def smooth(a, k=2):
     return out
 
 
-def nuclei(env, floor_pct=0.25, min_gap=0.07, env_gate=None):
+def nuclei(env, floor_pct=0.25, min_gap=0.07, env_gate=None,
+           env_gate_frames=None):
     """Syllable nuclei: local maxima that clear a prominence gate.
 
     env_gate, when given, drops nuclei sitting in near-silence. A tiny
     fraction of marks used to land in a pause (the nearest local maximum to
     the ideal slot was a room-noise blip), which reads on screen as the
     highlight hanging back until the word is actually spoken.
+
+    env_gate_frames is a per-frame boolean speech mask (onsets.adaptive_gate
+    returns one) applied INSTEAD of env_gate when supplied. A scalar threshold
+    cannot serve a recording made in a noisy room: it is derived from
+    percentiles of the whole signal, so raising the noise floor raises the
+    threshold with it and the quieter real syllables fall below it. The scorer
+    needs that mask for microphone recordings, which are never as clean as the
+    master audio this module normally runs on.
     """
     n = len(env)
     srt = sorted(env)
@@ -71,7 +80,10 @@ def nuclei(env, floor_pct=0.25, min_gap=0.07, env_gate=None):
             j = i
             while (j + 1 < n - 1 and env[j + 1] >= env[j] and env[j + 1] > gate):
                 j += 1
-            loud = env_gate is None or env[i] >= env_gate
+            if env_gate_frames is not None:
+                loud = bool(env_gate_frames[i])
+            else:
+                loud = env_gate is None or env[i] >= env_gate
             if loud and (not out or (i - out[-1]) >= int(min_gap / HOP)):
                 out.append(i)
             i = j + 1
@@ -188,24 +200,49 @@ def build(audio, captions, out_path, start=0.0, log=True):
     if log:
         print(f"  nuclei {len(idx)}  gate {20*math.log10(gate+1e-12):.1f} dB")
 
-    out, snapped, total_w = [], 0, 0
+    out, snapped, total_w, ref_n = [], 0, 0, 0
     for c in captions:
         words = [w for w in re.split(r"\s+", c["text"].strip()) if w]
         s0, s1 = c.get("speech_start"), c.get("speech_end")
         if not words or s0 is None or s1 is None or not (s1 > s0):
-            out.append({**c, "word_marks": None})
+            out.append({**c, "word_marks": None, "ref_nuclei": None})
             continue
-        inside = [t for t in times if s0 - 0.06 <= t <= s1 + 0.06]
+        # The padding below serves two callers with conflicting needs, so the two
+        # windows are computed separately.
+        #
+        # snap_words wants a little slack past speech_end: a tail nucleus is a
+        # legitimate place for the final word's mark to land.
+        #
+        # ref_nuclei is the reference the scorer aligns a recording against, and
+        # it must NOT contain the next sentence. 120 of the 229 adjacent pairs
+        # in this build overlap in the audio, by up to 4.08s, and the +0.06 pad
+        # walked straight into them: sentence 5 exported peaks out to 32.93s
+        # while sentence 6 began at 32.00s, so its reference described two
+        # sentences and every reading of it was scored against audio the
+        # learner was never asked to produce.
+        pad = 0.06
+        inside = [t for t in times if s0 - pad <= t <= s1 + pad]
+        ref = [t for t in inside if t <= s1]
         marks, _ = snap_words(words, s0, s1, inside, loud=env)
         out.append({**c, "word_marks": [round(m, 3) for m in marks],
+                    "ref_nuclei": [round(t, 3) for t in ref],
                     "nuclei": len(inside)})
         total_w += len(words)
         snapped += 1
+        ref_n += len(ref)
         c["_m"] = marks
 
+    # ref_nuclei is the reference the scorer aligns a recording against. It is
+    # emitted here, in the module that already computed the peak times, rather
+    # than re-derived per sentence in the scorer: re-running nuclei() on a
+    # per-sentence window detects a different set of peaks than the whole-file
+    # pass did (the gate is relative to the window's own floor and peak), and
+    # the scorer would then compare the user's audio against a reference that
+    # never existed in the build.
     json.dump({"captions": out, "hop": HOP,
                "method": "syllable nuclei snapping",
-               "nuclei": len(idx)},
+               "nuclei": len(idx),
+               "ref_nuclei_total": ref_n},
               open(out_path, "w", encoding="utf-8"), ensure_ascii=False)
     if log:
         print(f"  {snapped}/{len(captions)} sentences snapped, "
@@ -221,6 +258,12 @@ def build(audio, captions, out_path, start=0.0, log=True):
 
 
 if __name__ == "__main__":
+    import glob
+    man = json.loads(open("player/player_captions.json", encoding="utf-8").read())
+    # The cached download is named by video id, not a fixed "native" path.
+    hits = glob.glob(f"audio2/native_{man['videoId']}.*")
+    if not hits:
+        raise SystemExit(f"找不到 audio2/native_{man['videoId']}.*")
     en = json.loads(open("player/energy.json", encoding="utf-8").read())
-    build("audio2/native.webm", en["captions"], "player/energy.json")
+    build(hits[0], en["captions"], "player/energy.json")
     print("updated player/energy.json with snapped word marks")
