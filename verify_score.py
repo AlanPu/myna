@@ -25,6 +25,12 @@ changed the score by under 2 points while a 1.2s hole cost 5-29 points and
 raised `missed` words. Skipping a WHOLE PHRASE is detected; clipping half a
 word is not. The UI marks the words it can see, and the scorer does not claim
 otherwise.
+
+The second half sweeps every sentence in the clip. The eight sampled ones are
+all long and healthy, which is how a scorer that answered "cannot align" for
+every line but the first passed here for a whole session: those eight were fed
+per-sentence clips, which is also how the browser feeds it, so the defect never
+showed up in them. The sweep is what makes that class of bug visible.
 """
 
 from __future__ import annotations
@@ -106,8 +112,30 @@ def noise(x: np.ndarray, snr_db: float) -> np.ndarray:
     return (x + n).astype(np.float32)
 
 
+def thin(x: np.ndarray) -> np.ndarray:
+    """Read the take faster, so the detector finds noticeably fewer nuclei.
+
+    This is the shape of the real failure: a long sentence read quickly comes
+    in with FEWER syllables than the reference — 0.55-0.90 as many across this
+    build's sample sentences. The aligner used to answer "cannot align" on
+    exactly this input, and nothing else produced it. Every case below leaves
+    the peak count near the reference, and so did the fake microphone, which is
+    why this shipped broken through a full round of checks.
+
+    Compression is the honest way to reach that state. Quieting the take does
+    not: the detector adapts its gate, and dropping the gain to 8% of the
+    original still yields 30 peaks out of 30. It has to be faster, not
+    smaller, for the count to actually fall.
+    """
+    return stretch(x, 0.75)
+
+
 CASES = [
     ("good", lambda x: x),
+    # Fewer syllables than the reference. The band used to be 0.35*span, which
+    # is narrower than the length difference, so no path existed and the whole
+    # sentence came back "cannot align".
+    ("thin", thin),
     ("slow", lambda x: stretch(x, 1.30)),
     ("fast", lambda x: stretch(x, 0.80)),
     # 90ms is under a syllable; see drag() for why late is not leading silence.
@@ -140,7 +168,7 @@ print(f"source: {SRC}")
 print("scores by injected defect (mean over "
       f"{len(SENTENCES)} sentences, original audio = 100):\n")
 print(f"  {'case':<8} {'mean':>7}  {'min':>6}  {'max':>6}   bars")
-order = ["good", "fast", "late", "gap", "noisy", "slow", "lead"]
+order = ["good", "thin", "fast", "late", "gap", "noisy", "slow", "lead"]
 base_mean = np.nanmean(rows["good"]) if rows["good"] else 100.0
 for name in order:
     v = np.array(rows[name], dtype=float)
@@ -159,7 +187,19 @@ for name in ("slow", "fast", "late", "gap"):
     if np.nanmean(rows[name]) >= np.nanmean(rows["good"]) - 8:
         print(f"\nFAIL: {name} is not measurably worse than a correct reading")
         ok = False
-if np.nanmean(rows["noisy"]) < np.nanmean(rows["good"]) - 20:
+# `thin` is the one case where producing a NUMBER is the whole assertion. A
+# take with fewer syllables than the reference must still align; the band used
+# to be 0.35*span, narrower than the length difference, so no path existed and
+# the sentence came back "cannot align" however well it was read. A low score
+# is correct and expected here — a learner who read 25% fast and lost a third
+# of their syllables did read badly.
+if np.isnan(np.array(rows["thin"], dtype=float)).any():
+    print("\nFAIL: a take with fewer syllables than the reference came back "
+          "unscored. The alignment band is narrower than the difference in "
+          "length, so no path exists and every such sentence answers "
+          "'cannot align' regardless of how well it was read.")
+    ok = False
+if np.nanmean(rows["noisy"]) < np.nanmean(rows["good"]) - 28:
     print("\nFAIL: a noisy recording collapsed the score — the metric is "
           "scoring the room, not the speech")
     ok = False
@@ -168,5 +208,57 @@ if np.nanmean(rows["lead"]) < np.nanmean(rows["good"]) - 12:
           "onset correction must absorb it; if this fails, the browser is "
           "being asked to report a start time it cannot know.")
     ok = False
+
+# --------------------------------------------------------------------------
+# Sweep the whole clip.
+#
+# The eight sentences above are long and healthy, which is exactly why the
+# "only sentence 0 scores" bug survived this check. That bug came from mixing
+# two clocks: the trim window subtracted `t0` (a position inside a 4-second
+# recording) from `speech_start` (a position on an 1100-second clip), asking
+# for a 259-second window out of 4 seconds of audio. Every sentence past the
+# first then answered "cannot align" — and the eight sentences sampled here
+# were all scored from per-sentence clips, where the window happened to cover
+# everything and the bug hid.
+#
+# So the sweep runs every sentence, and the two failure modes are checked
+# separately, because they mean different things:
+#   - a short take is the user stopping early, and is fine
+#   - a long take that will not align is the scorer being wrong
+# --------------------------------------------------------------------------
+sweep = list(range(len(en["captions"])))
+s_long_bad: list[int] = []
+s_short: list[int] = []
+s_scores: list[float] = []
+for i in sweep:
+    base = clip(i)
+    take = np.concatenate([base, np.zeros(int(2 * SR), dtype=np.float32)])
+    r = S.score_sentence(en["captions"][i], take, t0=0.0)
+    if r["score"] is None:
+        need = (en["captions"][i]["speech_end"] - en["captions"][i]["speech_start"])
+        # Under two seconds of speech there are not enough nuclei to align at
+        # all; that is a limit of the method, reported as such, not a defect.
+        (s_short if need < 2.0 else s_long_bad).append(i)
+    else:
+        s_scores.append(r["score"])
+
+pct = 100.0 * len(s_scores) / len(sweep)
+print(f"\n  swept {len(sweep)} sentences: {len(s_scores)} scored ({pct:.0f}%), "
+      f"{len(s_short)} too short to align, {len(s_long_bad)} failed")
+if s_scores:
+    a = np.array(s_scores)
+    print(f"  re-read scores: mean {a.mean():.1f}  median {np.median(a):.1f}  "
+          f"p10 {np.percentile(a, 10):.1f}")
+if len(s_long_bad) > len(sweep) * 0.05:
+    print(f"\nFAIL: {len(s_long_bad)} sentences long enough to align were "
+          f"refused. This is the only sentence that scores, or the window is "
+          f"built from the clip's absolute clock instead of the take's.")
+    ok = False
+if s_scores and np.median(s_scores) < 85:
+    print(f"\nFAIL: median re-read score is {np.median(s_scores):.1f} — a "
+          f"correct reading of the original should land near 100 across the "
+          f"whole clip, not just the sampled sentences.")
+    ok = False
+
 print("\n" + ("PASS" if ok else "FAIL"))
 sys.exit(0 if ok else 1)

@@ -168,7 +168,24 @@ def dtw(ref: np.ndarray, hyp: np.ndarray) -> tuple[float, list[tuple[int, int]]]
     if n == 0 or m == 0:
         return 0.0, []
     span = max(n, m)
-    band = max(3, int(0.35 * span))
+    # The band must be wide enough for a path to physically exist. A path runs
+    # from (1,1) to (n,m) along the diagonal, stepping one row OR one column at a
+    # time, so climbing n-1 rows requires at least n-1 columns of slack. A band
+    # narrower than the LENGTH DIFFERENCE makes that impossible: with a
+    # 35-peak reference and a 22-peak take, band = 0.35*35 = 12, and no path
+    # survives, so DTW returns infinity and the sentence answers "cannot align".
+    #
+    # This is why it went unnoticed: it only fires when the learner produces
+    # noticeably FEWER nuclei than the reference — reading fast, reading
+    # quietly, or just speaking into a room that ate a few plosives. Every
+    # synthetic fixture and the fake microphone both produce a peak count close
+    # to the reference, so none of them ever reached the failure.
+    #
+    # |n-m|+2 is the minimum that guarantees reachability while still
+    # constraining the aligner, which is the band's real job: stop a
+    # constrained-free DTW from mapping every reference peak onto one loud
+    # user peak and declaring a perfect score.
+    band = max(3, int(0.35 * span), abs(n - m) + 2)
 
     inf = float("inf")
     D = np.full((n + 1, m + 1), inf)
@@ -238,14 +255,21 @@ def lead_silence(ref: np.ndarray, pcm: np.ndarray, t0: float) -> float:
     The same DTW and the same band as the real scoring run are used, so the
     offset that wins here is the one the score itself would have preferred.
 
-    Returns 0 when no offset improves on starting the sentence at the first
-    sample, which is the common case for a take that began on time.
+    A candidate has to earn the shift. Without a margin the search always
+    returns the largest offset it tried whenever that is a hair cheaper, which
+    is how a take whose first syllable simply sits 0.2s after speech_start
+    (the normal case — speech_start is an energy threshold, not an onset) came
+    back claiming a 600ms lead and scored 43 instead of 95. The bar is
+    therefore a 15% cut in alignment cost, plus a minimum shift worth making.
     """
     hyp0 = peaks(pcm)
     if hyp0.size < MIN_PEAKS or ref.size < MIN_PEAKS:
         return 0.0
 
     base, _ = dtw(ref, np.maximum(hyp0, 0.0))
+    if base <= 0:
+        return 0.0
+    bar = base * 0.85
     best, best_cost = 0.0, base
     # A take that opens with more than 0.6s of room tone was not an attempt at
     # this sentence — shifting that far would score a performance the learner
@@ -258,7 +282,7 @@ def lead_silence(ref: np.ndarray, pcm: np.ndarray, t0: float) -> float:
         cost, _ = dtw(ref, np.maximum(shifted, 0.0))
         if cost < best_cost:
             best, best_cost = lead, cost
-    return best
+    return best if best_cost <= bar else 0.0
 
 
 def rebase(ref: np.ndarray, s0: float | None) -> np.ndarray:
@@ -279,6 +303,53 @@ def rebase(ref: np.ndarray, s0: float | None) -> np.ndarray:
         return ref
     anchor = float(s0) if s0 is not None else float(ref[0])
     return ref - anchor
+
+
+def confidence(ref: np.ndarray, n_hyp: int | None = None) -> float:
+    """How much of this sentence's score is signal rather than measurement.
+
+    A short sentence carries too few syllables for a rhythm comparison to say
+    anything. Two seconds of speech holds a handful of nuclei, and the gap
+    between what a correct reading and a wrong one costs is smaller than the
+    disagreement between two detectors on the SAME audio. Sentence 76
+    ("professional and authentic", 1.95s) scored 15 on a perfect re-read whose
+    first ten peaks matched the reference to within 30ms: the tail differed by
+    40ms and the score fell off a cliff.
+
+    Rather than publish a number that precise cannot support, this reports how
+    much the sentence can bear, and the caller says so on screen.
+
+    Scale: 1.0 at 4s or more with a normal syllable count, falling off below
+    that. The 4s point is where this build's measurement noise (~30-60ms per
+    node) drops under the score's resolution.
+
+    The reference peaks come from a whole-file pass and the recording from a
+    slice, and the two disagree about how many nuclei a sentence has. When they
+    disagree by a lot, the reading is being scored against a reference that
+    does not describe it: sentence 150 reads 18 reference peaks over 3.1s and 25
+    from the slice, whose first 18 line up one-for-one, and the surplus pulls
+    the alignment tail apart. A big surplus is direct evidence that this
+    particular take cannot be measured well, so it discounts confidence
+    regardless of how long the sentence is.
+    """
+    if ref.size < 2:
+        return 0.0
+    span = float(ref[-1] - ref[0])
+    by_span = min(1.0, max(0.0, span / 4.0))
+    # Peak count is a weak requirement: this build's sentences carry a median
+    # of 22 nuclei, so anything under 8 is genuinely thin, but 8-16 is normal
+    # speech and should not be discounted.
+    by_count = min(1.0, ref.size / 6.0)
+    by_agree = 1.0
+    if n_hyp:
+        ratio = float(n_hyp) / float(ref.size)
+        # Symmetric: neither many more nor many fewer peaks than the reference
+        # means the two detectors saw different material. Measured on a
+        # perfect re-read, the ratio sits at 1.07 (median), 1.02-1.12 across
+        # the interquartile range, and only 2 of 230 sentences exceed 1.5 — so
+        # 1.5 is where the disagreement stops being ordinary.
+        by_agree = min(1.0, 1.0 / max(ratio, 1.0 / ratio) / 1.5)
+    return by_span * by_count * by_agree
 
 
 def noise_floor(ref: np.ndarray) -> float:
@@ -381,6 +452,15 @@ def score_sentence(cap: dict, user_pcm: np.ndarray, t0: float | None = None) -> 
     s0 = cap.get("speech_start")
     s1 = cap.get("speech_end")
 
+    # Rebase first, so the trim window, the marks and the aligner all read the
+    # sentence off one clock. The recording is sentence-local from the start;
+    # doing this before the trim is what makes t0 comparable to anything here.
+    anchor = float(s0) if s0 is not None else (float(ref[0]) if ref.size else 0.0)
+    ref = rebase(ref, s0)
+    if s1 is not None:
+        s1 = float(s1) - anchor
+    marks = [(m - anchor) if m is not None else None for m in marks]
+
     out = {
         "i": cap.get("i"),
         "words": words,
@@ -398,22 +478,36 @@ def score_sentence(cap: dict, user_pcm: np.ndarray, t0: float | None = None) -> 
     }
 
     pcm = user_pcm
-    if t0 is not None and s0 is not None and s1 is not None:
+    if t0 is not None and ref.size:
+        # Window the take around where the sentence was supposed to begin.
+        #
+        # `t0` is a position inside the recording, and the window is sized from
+        # the reference peaks alone. It is deliberately NOT built from s0/s1:
+        # those sit on the clip's absolute timeline — sentence 51 starts at
+        # 259.0s — and subtracting one from the other asks for a 259-second
+        # window out of 4 seconds of audio. The window then covers nothing, the
+        # sentence never matches, and every line but the first answers "cannot
+        # align". Sentence 0 is the only one that works, and only because its
+        # absolute start is 0.0, so the two clocks coincide by accident.
+        #
+        # The window is generous rather than tight, and that is the whole
+        # point. Cutting the take to the reference's own span measured 8.47s
+        # for a sentence of 3.5s: a learner reading 30% slow had their extra
+        # second sliced off, the measured tempo fell from 1.30 to 1.04, and the
+        # score went UP from 40 to 71 — the window was hiding the one thing it
+        # exists to measure. Trimming is for removing dead air at the edges,
+        # not for holding the speaker to the original's tempo.
         pad = 0.25
-        a = max(0.0, (s0 - pad) - t0)
-        b = min(len(pcm) / SR, (s1 + pad) - t0)
+        span = float(ref[-1] - ref[0])
+        a = max(0.0, -pad - t0)
+        # Allow the take to run well past the reference. A slow reader needs
+        # room; an over-long take is handled by the aligner, which copes with
+        # extra peaks far better than a blind truncation does.
+        b = min(len(pcm) / SR, span * 1.8 + 2 * pad - t0)
         if b > a:
             pcm = pcm[int(a * SR):int(b * SR)]
 
-    # Everything below compares the reference and the recording on the
-    # sentence's own clock. Marks are absolute (from energy.json), so they get
-    # the same shift as the peaks, anchored the same way.
-    anchor = float(s0) if s0 is not None else (float(ref[0]) if ref.size else 0.0)
-    ref = rebase(ref, s0)
     out["ref_peaks"] = int(ref.size)
-    marks = [(m - anchor) if m is not None else None for m in marks]
-    if s1 is not None:
-        s1 = float(s1) - anchor
 
     # ---- find where the learner actually started ------------------------
     # `t0` cannot be trusted as the speech onset. getUserMedia takes hundreds of
@@ -445,13 +539,27 @@ def score_sentence(cap: dict, user_pcm: np.ndarray, t0: float | None = None) -> 
     if hyp.size:
         out["onset_ms"] = round(max(0.0, lead) * 1000, 1)
 
+    # A take that covers only part of the sentence is not the same failure as
+    # one that covers it but does not match. Saying "cannot align" for a
+    # half-finished read sends the user hunting for a pronunciation problem
+    # they do not have, so the note says what actually happened and how long
+    # the sentence needed.
+    need = float(ref[-1] - ref[0]) if ref.size else 0.0
+    got = float(hyp[-1]) if hyp.size else 0.0
+    out["need_sec"] = round(need, 2)
+    out["got_sec"] = round(got, 2)
+    out["confidence"] = round(confidence(ref, int(hyp.size)), 2)
+
     if ref.size < MIN_PEAKS or hyp.size < MIN_PEAKS:
-        out["note"] = "语音太少,无法评分"
+        out["note"] = ("只录到 %.1f 秒,原声这句有 %.1f 秒,再试一次"
+                       % (got, need)) if (got and need and got < need * 0.8) \
+            else "语音太少,无法评分"
         return out
 
     cost, path = dtw(ref, hyp)
     if not path:
-        out["note"] = "无法对齐"
+        out["note"] = ("没读完——录到 %.1f 秒,原声这句有 %.1f 秒"
+                       % (got, need)) if (need and got < need * 0.8) else "无法对齐"
         return out
 
     # Per-word verdicts run BEFORE the score is combined, because coverage is
@@ -514,6 +622,16 @@ def score_sentence(cap: dict, user_pcm: np.ndarray, t0: float | None = None) -> 
     # begin. Positive = late. Corrected for tempo: someone who is uniformly
     # slower and uniformly late should not have the same offset reported twice.
     out["delay_ms"] = round((ht0 - float(ref[0])) * 1000, 1)
+
+    # How much the number is worth. A short sentence cannot support a precise
+    # rhythm score, and publishing one anyway is worse than saying so: on a
+    # 1.95s sentence a correct re-read scored 15 because its tail ran 40ms
+    # long, which is well inside the measurement noise.
+    conf = confidence(ref, int(hyp.size))
+    out["confidence"] = round(conf, 2)
+    if conf < 0.5:
+        out["note"] = ("这句只有 %.1f 秒,节奏评分不够稳(参考音节 %d 个);"
+                       "分数仅供参考" % (rspan, ref.size))
 
     out["ok"] = True
     return out

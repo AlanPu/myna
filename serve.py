@@ -161,6 +161,24 @@ def score_take(index: int, t0: float | None, blob: bytes) -> dict:
     """
     import score as scorer
     en = load_energy()
+
+    # Keep the take. Everything below reports numbers, and numbers alone have
+    # already failed to explain a scorer that answered "cannot align" for every
+    # sentence but the first while every synthetic fixture scored fine. The
+    # difference between a synthetic take and a real one is audible; it is not
+    # visible in a peak count. Real recordings are what settled the last bug.
+    #
+    # Off by default. MYNA_KEEP_TAKES=1 to write them, MYNA_TAKE_DIR to choose
+    # where.
+    if os.environ.get("MYNA_KEEP_TAKES", "0") == "1":
+        try:
+            keep = Path(os.environ.get("MYNA_TAKE_DIR", "/tmp"))
+            keep.mkdir(parents=True, exist_ok=True)
+            f = keep / f"myna_take_{index}_{int(time.time())}.webm"
+            f.write_bytes(blob)
+        except OSError:
+            pass
+
     pcm = scorer.decode_bytes(blob)
     if pcm.size < scorer.SR // 4:
         return {"error": "录音太短"}
@@ -313,6 +331,20 @@ class Handler(SimpleHTTPRequestHandler):
             return self._json(400, {"error": "无法解析这段录音"})
         finally:
             _score_lock.release()
+        # One line per take. Off by default; MYNA_SCORE_LOG=1 to turn it on.
+        # These are the numbers that settle a scoring failure — how many
+        # syllables the reference has, how many the recording did, how long
+        # each was — and none of them exist anywhere else. The browser cannot
+        # report them: it never learns what the server saw.
+        if os.environ.get("MYNA_SCORE_LOG", "0") == "1":
+            print(
+                f"score i={index} t0={t0} -> {r.get('score')} "
+                f"ref_pk={r.get('ref_peaks')} user_pk={r.get('user_peaks')} "
+                f"onset={r.get('onset_ms')} need={r.get('need_sec')} "
+                f"got={r.get('got_sec')} conf={r.get('confidence')} "
+                f"note={r.get('note') or '-'}",
+                file=sys.stderr, flush=True,
+            )
         return self._json(200, r)
 
     def do_POST(self) -> None:

@@ -125,6 +125,7 @@
   .big{font-size:31px;font-weight:700;letter-spacing:-.02em;
        font-variant-numeric:tabular-nums;line-height:1}
   .big.g{color:var(--accent)} .big.y{color:var(--warn)} .big.r{color:#f87171}
+  .big.dim{color:var(--dim)}
   .metrics{display:flex;gap:16px;flex-wrap:wrap;margin-left:auto}
   .metric{font-size:12px;color:var(--dim);line-height:1.5}
   .metric b{display:block;color:var(--fg);font-size:14px;
@@ -841,6 +842,18 @@ async function micSend(blob, index, t0) {
     });
     const j = await r.json();
     if (!r.ok) throw new Error(j.error || ('HTTP ' + r.status));
+    // The server logs what it measured; these are the facts only this page
+    // knows. Which sentence was chosen and why, where the playhead actually
+    // sat when the button went red, and what the microphone produced. A scorer
+    // that answers "cannot align" is decided by the combination, and half of
+    // it exists nowhere but here.
+    console.log('[myna] take', JSON.stringify({
+      index, t0, bytes: blob.size, type: blob.type,
+      fromLoop: !!(loop && loopIndex >= 0),
+      playhead: A.currentTime, speed,
+      sent: Number((performance.now() - micStartedAt) / 1000).toFixed(2),
+      result: j.score, note: j.note, ref: j.ref_peaks, user: j.user_peaks,
+    }));
     paintScore(j);
   } catch (e) {
     flash('评分失败:' + (e && e.message || e));
@@ -898,7 +911,18 @@ function paintScore(r) {
   }
   if (!bits.length) bits.push('每个词都落在原声的位置上。');
   document.getElementById('sWhy').innerHTML = bits.join('<br>');
-  document.getElementById('sNote').textContent = r.note || '';
+
+  // The server flags sentences too short for a rhythm score to mean anything.
+  // Showing the number without that caveat is the misleading part: a 1.95s
+  // sentence read perfectly scores 15, because the measurement noise is larger
+  // than the difference being measured.
+  const note = document.getElementById('sNote');
+  const parts = [];
+  if (r.note) parts.push(r.note);
+  if (r.confidence != null && r.confidence < 0.5) {
+    big.className = 'big dim';
+  }
+  note.textContent = parts.join(' · ');
   markVerdicts(r.i != null ? r.i : micIndex, r.per_word || []);
 }
 
