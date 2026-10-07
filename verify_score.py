@@ -26,11 +26,24 @@ raised `missed` words. Skipping a WHOLE PHRASE is detected; clipping half a
 word is not. The UI marks the words it can see, and the scorer does not claim
 otherwise.
 
-The second half sweeps every sentence in the clip. The eight sampled ones are
-all long and healthy, which is how a scorer that answered "cannot align" for
-every line but the first passed here for a whole session: those eight were fed
-per-sentence clips, which is also how the browser feeds it, so the defect never
-showed up in them. The sweep is what makes that class of bug visible.
+The third section checks interference by a REAL second voice, and the fixture
+for it is the point worth stating. That voice must not come from this clip. An
+earlier version took a distant segment of the same recording as "the person in
+the room", which is the same throat as the narrator, and at 0 dB it drove the
+score to 10 — a number that looks like a catastrophic detector failure but
+measures nothing real: two copies of one voice are genuinely indistinguishable
+in a mono mix, no peak-based scorer can separate them, and no learner produces
+that by accident. It also hid a defect that WAS real. Against a different
+speaker the same sentences score 96 at 12 dB, 86 at 0 dB and 72 at -6 dB, and
+the -6 dB end is where interference genuinely starts to bite. Anyone re-running
+this with a same-speaker fixture will see a catastrophic number and should not
+believe it.
+
+`fixtures/voice_*.wav` are three recordings of three different people, kept in
+the repository so this sweep is reproducible for anyone who clones it. They are
+committed rather than generated because a check that quietly skips when its
+input is missing is worse than no check at all — and this one would have
+skipped on exactly the machine where a contributor assumed it had run.
 """
 
 from __future__ import annotations
@@ -110,6 +123,21 @@ def noise(x: np.ndarray, snr_db: float) -> np.ndarray:
     p = np.sqrt(np.mean(x ** 2))
     n = rng.standard_normal(len(x)).astype(np.float32) * (p / 10 ** (snr_db / 20))
     return (x + n).astype(np.float32)
+
+
+def voice_of(path: str) -> np.ndarray:
+    return S.decode_raw(subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", path, "-f", "f32le", "-ac", "1",
+         "-ar", str(SR), "-"], capture_output=True, check=True).stdout)
+
+
+def interfere(x: np.ndarray, other: np.ndarray, snr_db: float) -> np.ndarray:
+    """Another person talking in the room, at `snr_db` below the learner."""
+    p = np.sqrt(np.mean(x ** 2))
+    q = np.sqrt(np.mean(other ** 2))
+    if q < 1e-9:
+        return x
+    return (x + np.resize(other, len(x)) * (p / 10 ** (snr_db / 20)) / q).astype(np.float32)
 
 
 def thin(x: np.ndarray) -> np.ndarray:
@@ -259,6 +287,66 @@ if s_scores and np.median(s_scores) < 85:
           f"correct reading of the original should land near 100 across the "
           f"whole clip, not just the sampled sentences.")
     ok = False
+
+# --------------------------------------------------------------------------
+# Another person in the room.
+#
+# `noisy` above adds white hiss, which is stationary and has no syllables of
+# its own. Real interference is speech: it has peaks, and those peaks land
+# wherever the other speaker's words fall. This is the defect that produced the
+# original report — "the recording picks up the room as well as me" — so it is
+# checked with a real second voice and swept down to where it genuinely hurts.
+#
+# The failure it guards against is the one the white-noise case cannot see. A
+# noisy take does not ADD peaks, it raises the envelope floor until quiet real
+# syllables drop out of the gate, so `noisy` catches that. A talking
+# neighbour is different: the detector still finds the learner (the sweep below
+# confirms the peak count holds) but DTW is then free to align the reference
+# onto the OTHER speaker's rhythm. Same symptom, different mechanism, and the
+# fix for the first one does nothing for the second.
+# --------------------------------------------------------------------------
+speaker = sorted(glob.glob("fixtures/voice_*.wav"))
+if not speaker:
+    print("\n  (no voice fixtures found — skipping the interference sweep)")
+    ok = False
+else:
+    other = voice_of(speaker[0])
+    print(f"\n  score against a different speaker "
+          f"({speaker[0].split('/')[-1]}):")
+    print(f"    {'snr':>5} {'score':>7} {'peaks ref/got':>15}")
+    inter: dict[float, list] = {}
+    for snr in (12, 9, 6, 3, 0, -3, -6):
+        vals, refs, gots = [], [], []
+        for i in SENTENCES:
+            r = S.score(en, interfere(clip(i), other, snr), i, t0=0.0)
+            vals.append(r["score"] if r["score"] is not None else float("nan"))
+            refs.append(r["ref_peaks"])
+            gots.append(r["user_peaks"])
+        inter[snr] = vals
+        bar = "#" * int(round(float(np.nanmean(vals)) / 5))
+        print(f"    {snr:5d} {np.nanmean(vals):7.1f} "
+              f"{int(np.mean(refs)):7d}/{int(np.mean(gots)):<7d} {bar}")
+
+    good_m = np.nanmean(inter[6])
+    # At 6 dB below the learner the room is audible but not competing, and a
+    # correct reading must still be scored as one.
+    if good_m < np.nanmean(rows["good"]) - 12:
+        print("\nFAIL: a different person talking 6dB below the learner costs "
+              "more than 12 points. The scorer is being pulled onto the other "
+              "speaker's rhythm.")
+        ok = False
+    # At -6 dB the neighbour is louder than the learner. Some loss is correct
+    # and some is not: this is the edge of what a mono mix can carry, and the
+    # assertion is that it degrades GRADUALLY rather than collapsing, which is
+    # what a gate that accidentally discards the learner would do.
+    worst = np.nanmean(inter[-6])
+    if worst < 45:
+        print(f"\nFAIL: the other speaker is LOUDER than the learner (-6 dB) and "
+              f"the score collapsed to {worst:.1f}. Peak count holds up, so this "
+              f"is the aligner following the wrong voice, not a gate failure — "
+              f"and it would show up as an inexplicable low score in a noisy "
+              f"room.")
+        ok = False
 
 print("\n" + ("PASS" if ok else "FAIL"))
 sys.exit(0 if ok else 1)
