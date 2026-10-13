@@ -13,11 +13,19 @@ player/*.webm
 player/slow/
 player/shots/
 
-# Generated data is kept, because the four verify_*.py checks read it and a
-# reviewer can rerun check.py without re-downloading anything. These are
-# small (a few hundred KB) and diff meaningfully.
-!player/player_captions.json
-!player/energy.json
+# Both of these describe ONE video — the one currently built — and every
+# rebuild overwrites them in place, so they are a snapshot of local state
+# rather than a source of truth. Swapping videos rewrote ~2000 lines apiece,
+# which made the diff for an unrelated one-line fix unreadable.
+#
+# They are NOT inputs anyone can check out and rely on: no clone is guaranteed
+# to hold whatever video the last contributor happened to build. check.py and
+# the verify_*.py scripts do read them, so a fresh clone must run rebuild.py
+# once (which fetches the audio, writes both files and runs the checks) before
+# any check can run. That is the price of keeping the repository free of
+# per-video state, and rebuild.py is already the documented entry point.
+player/player_captions.json
+player/energy.json
 
 # macOS
 .DS_Store

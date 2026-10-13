@@ -169,3 +169,13 @@ rebuild.py
 Python 3.12、`ffmpeg`、`yt-dlp`、`youtube-transcript-api`,浏览器检查需要 Playwright。慢速渲染不需要 `rubberband`。
 
 `.venv/`、`audio2/`、`player/*.m4a` 和变速产物不入库——都由 `rebuild.py` 生成。
+
+`player/player_captions.json` 和 `player/energy.json` 同样不入库。它们**只描述当前构建的那一个视频**,每次重建原地覆盖,所以是本地状态快照而不是可依赖的输入:没有一个克隆能保证持有「上一位贡献者碰巧构建的那个视频」。入库的代价是换视频时各重写约 2000 行,把一个无关的一行修复的 diff 淹掉。
+
+代价是**新克隆必须先构建一次**才能跑任何检查——六个检查全部直接读这两份文件:
+
+```bash
+.venv/bin/python rebuild.py "<youtube-url>" 0 180 "标题"   # 会顺带跑完 check.py
+```
+
+没构建就跑 `check.py`,它会直接说明缺哪两个文件并给出上面这条命令,而不是让六个检查各自抛一个 `FileNotFoundError`。

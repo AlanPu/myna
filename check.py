@@ -109,6 +109,19 @@ def server(own: bool):
                 proc.wait(timeout=5)
 
 
+def missing_build() -> list[str]:
+    """Which per-video build outputs are absent.
+
+    player_captions.json and energy.json describe the ONE video that was last
+    built and are gitignored, so a fresh clone has neither. Every check below
+    reads them, and without this guard each one dies on its own
+    FileNotFoundError — six tracebacks that all say the same thing less
+    clearly than one line does.
+    """
+    return [str(p) for p in (PLAYER / "player_captions.json",
+                             PLAYER / "energy.json") if not p.exists()]
+
+
 def main() -> int:
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
     reuse = "--no-server" in sys.argv
@@ -117,6 +130,14 @@ def main() -> int:
     if not todo:
         raise SystemExit(f"unknown check(s): {', '.join(only)}; "
                          f"choose from {', '.join(c[0] for c in CHECKS)}")
+
+    absent = missing_build()
+    if absent:
+        raise SystemExit(
+            "nothing to check: " + ", ".join(absent) + " missing.\n"
+            "These are written by the build, describe the video that was last\n"
+            "built, and are not kept in git. Build one first:\n"
+            '    .venv/bin/python rebuild.py "<youtube-url>" 0 180 "title"')
 
     env = dict(os.environ)
     env.setdefault("PLAYWRIGHT_BROWSERS_PATH",

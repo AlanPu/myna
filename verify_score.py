@@ -83,14 +83,24 @@ import score as S
 # energy.json carries no video id of its own, so the manifest is the only link
 # between the two. Resolve through it, and if the audio for that id is not
 # cached, say so instead of falling back to some other video's file.
-en = json.load(open("player/energy.json", encoding="utf-8"))
+#
+# Both files are per-video build output and are gitignored, so on a fresh clone
+# the very first thing this hits is a missing file. Read them through a guard
+# that names the fix, rather than letting a raw FileNotFoundError out.
 SR = S.SR
 
 try:
-    VID = json.load(open("player/player_captions.json",
-                         encoding="utf-8")).get("videoId")
-except OSError:
-    VID = None
+    _manifest = json.load(open("player/player_captions.json",
+                               encoding="utf-8"))
+    en = json.load(open("player/energy.json", encoding="utf-8"))
+except OSError as e:
+    print(f"{e.filename} is missing. Both player_captions.json and energy.json "
+          f"describe the video that was last built, are not kept in git, and "
+          f"are written by the build itself — so run rebuild.py once for the "
+          f"video you want to check.")
+    sys.exit(1)
+
+VID = _manifest.get("videoId")
 
 if not VID:
     print("player/player_captions.json has no videoId — cannot tell which "
