@@ -44,6 +44,13 @@ the repository so this sweep is reproducible for anyone who clones it. They are
 committed rather than generated because a check that quietly skips when its
 input is missing is worse than no check at all — and this one would have
 skipped on exactly the machine where a contributor assumed it had run.
+
+The source audio is resolved through the manifest's `videoId` rather than by
+globbing `audio2/`. The sentences in `energy.json` are cut out of the raw audio
+by time, so the two must come from the same video; when a second video was
+cached, the alphabetical glob started handing this check the wrong recording and
+every number below it became meaningless. It now exits with an explanation
+rather than scoring one video's sentences against another video's waveform.
 """
 
 from __future__ import annotations
@@ -52,14 +59,52 @@ import glob
 import json
 import subprocess
 import sys
+from pathlib import Path
 
 import numpy as np
 
 import score as S
 
-SRC = sorted(glob.glob("audio2/native_*.webm") or glob.glob("audio2/native_*"))[0]
+# The alignment must come from ONE video. `SRC` is the raw audio the sentences
+# are cut out of, and energy.json holds those sentences' boundaries, so pairing
+# them across different videos measures nothing: the word marks land in the
+# wrong recording and every case scores like noise.
+#
+# This used to be `sorted(glob("audio2/native_*.webm"))[0]` — the alphabetically
+# first cache file. That was correct only while exactly one video was cached.
+# Once a second was cached it silently repointed the check: with the manifest on
+# the original video and two files present, the glob returned the NEW video's
+# audio, so all 230 sentences were cut from a recording their boundaries did not
+# describe. Note it did not crash or look empty — it produced a full table of
+# plausible-looking numbers, which is what makes an input mismatch worth failing
+# over rather than warning about. Whether the alphabetical order happens to agree
+# with the manifest depends on the two video ids, so it reads as intermittent.
+#
+# energy.json carries no video id of its own, so the manifest is the only link
+# between the two. Resolve through it, and if the audio for that id is not
+# cached, say so instead of falling back to some other video's file.
 en = json.load(open("player/energy.json", encoding="utf-8"))
 SR = S.SR
+
+try:
+    VID = json.load(open("player/player_captions.json",
+                         encoding="utf-8")).get("videoId")
+except OSError:
+    VID = None
+
+if not VID:
+    print("player/player_captions.json has no videoId — cannot tell which "
+          "cached audio player/energy.json was measured from. Run rebuild.py "
+          "first.")
+    sys.exit(1)
+
+_hits = sorted(Path("audio2").glob(f"native_{VID}.*"))
+if not _hits:
+    print(f"no cached audio for {VID} in audio2/ — the build's captions and "
+          f"its source audio must both be present, or the sentences cannot be "
+          f"cut. Run rebuild.py first.")
+    sys.exit(1)
+SRC = str(_hits[0])
 
 
 def clip(i: int) -> np.ndarray:
