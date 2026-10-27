@@ -26,6 +26,10 @@ What each check proves
   verify_e2e_score a real browser records a take with MediaRecorder, posts it,
                   and the per-word verdicts reach the caption spans. The
                   earlier checks could all pass with this path broken.
+  verify_e2e_shadow a real browser records a 影子跟读 take — microphone open
+                  BEFORE the original starts — and the replay really puts the
+                  original in the left ear and the take in the right one,
+                  judged by the RMS of each output channel.
 
 Usage:
     .venv/bin/python check.py            # all checks
@@ -61,6 +65,7 @@ CHECKS = [
     ("slow", "verify_slow.py", True),
     ("score", "verify_score.py", False),
     ("e2e-score", "verify_e2e_score.py", False),
+    ("e2e-shadow", "verify_e2e_shadow.py", False),
 ]
 
 

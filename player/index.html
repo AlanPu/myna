@@ -147,6 +147,10 @@
   .ghost.sm{font-size:12.5px;padding:5px 11px}
   .ghost.sm.on{border-color:var(--accent);color:var(--accent)}
   .listhint{font-size:11.5px;color:var(--dim)}
+  /* ---- 影子跟读:左右分轨回放,不打分 ---------------------------------- */
+  button.shadow.on{background:#0d9488;color:#fff;animation:pulse 1.3s ease-in-out infinite}
+  button.shadow.play{background:#134e6f;color:#cfe9ff;border-color:#2f6f8f}
+  .shadowbar{margin-top:12px}
 </style>
 </head>
 <body>
@@ -191,6 +195,7 @@
       <button class="ghost" id="rep">↻ 重听本句</button>
       <button class="ghost" id="loopBtn">🔁 循环跟读本句</button>
       <button class="ghost mic" id="micBtn">🎤 录音跟读</button>
+      <button class="ghost shadow" id="shadowBtn">🎧 影子跟读</button>
       <div class="scrub">
         <span class="t" id="t0">0.00</span>
         <div class="track" id="track">
@@ -219,6 +224,11 @@
       </div>
       <div class="why" id="sWhy"></div>
       <div class="scorenote" id="sNote"></div>
+    </div>
+
+    <div class="listen shadowbar" id="shadowbar" hidden>
+      <button class="ghost sm" id="shadowReplay">🎧 左右耳重听</button>
+      <span class="listhint" id="shadowHint">左耳原声 · 右耳你的 · 建议戴耳机</span>
     </div>
 
     <div class="legend">
@@ -514,6 +524,9 @@ function build() {
     // Jumping to a line is a request to leave the repeated one; without this
     // the loop's 30ms poll keeps seeking back and the click does nothing.
     if (loop) stopLoop();
+    // 同理,换句就是放弃这一条跟读:否则录音会继续录着上一句的参考,而回放
+    // 用的是新的 span,两条轨对不上。
+    shadowQuiet();
     // Moving to another sentence retires the previous verdict: the coloured
     // words belong to the line the user was just reading, and the score panel
     // describes a take of that line only.
@@ -754,6 +767,8 @@ function setMicState(s) {
 }
 
 async function micStart() {
+  // 影子回放占着输出路由,先收掉;评分那边的 A/B 也要求原声走直连。
+  shadowQuiet();
   // Prefer the sentence the display is already showing. idxAtOrig() infers a
   // sentence from the playhead, and a playhead sitting in the gap between two
   // lines belongs to the previous one — recording it there scored the take
@@ -888,6 +903,8 @@ function keepTake(blob, index) {
 function listenHint(txt) { document.getElementById('listenHint').textContent = txt || ''; }
 
 function stopListen() {
+  // 影子回放和这里共用同一张输出路由,不收掉的话下一次普通播放会单边出声。
+  shadowQuiet();
   clearTimeout(abTimer); abTimer = null;
   if (takeEl) { takeEl.pause(); takeEl = null; }
   document.getElementById('playMine').classList.remove('on');
@@ -902,6 +919,7 @@ function stopListen() {
 function playMine() {
   if (!takeUrl) return;
   if (takeEl) { stopListen(); return; }   // second press = stop
+  shadowQuiet();
   if (!A.paused) A.pause();
   takeEl = new Audio(takeUrl);
   takeEl.onended = stopListen;
@@ -923,6 +941,7 @@ function playAb() {
   const i = takeIndex >= 0 ? takeIndex
     : (VERDICT && VERDICT.index >= 0 ? VERDICT.index : micIndex);
   if (i < 0 || !M || !M.captions[i]) { flash('先选一句'); return; }
+  shadowQuiet();
   if (loop) stopLoop();
   A.pause();
   abMode = 'orig';
@@ -1187,6 +1206,330 @@ function flash(msg) {
   flashTimer = setTimeout(() => el.classList.remove('show'), 1800);
 }
 
+// ------------------------------------------------------------- shadow mode
+// 影子跟读:麦克风与播放同时开,录一遍,然后把原声放左耳、录音放右耳同时播。
+//
+// 这里没有任何判据。评分链路(/api/score、逐词标记、55/30/15 的权重)完全不
+// 参与:影子跟读练的是"边听边说"的并行通道,而这条通道没法用音节峰对齐来
+// 裁判 —— 用户本来就该和原声重叠,重叠不是错误。既然不给分,也就不存在"回声
+// 混进录音导致虚高"这个问题,唯一必须做对的事情是两条轨在时间上对齐。
+//
+// 对齐不靠"同时按下",靠两个时刻:录音真正开始的时刻、原声真正到达句子起点
+// 的时刻。两个都用 performance.now() 记,回放时按差值决定从录音的第几秒起播。
+// 这一步错了,左右耳之间就是一层几十毫秒的回声 —— 听起来像自己的问题。
+const shadowBtn = document.getElementById('shadowBtn');
+const shadowbar = document.getElementById('shadowbar');
+
+// 音频图里的句柄,由 bind() 填。out 是总和点,pan 只在回放期间挂上。
+const SHADOW = { ctx: null, src: null, pan: null, out: null, meter: null };
+
+let shadowState = 'idle';       // idle | recording | decoding | playing
+let shadowIndex = -1;           // 这一条跟的是哪句,和 micIndex 分开记
+let shadowStream = null, shadowRec = null, shadowChunks = null;
+let shadowRecTimer = null;      // 硬上限,防止提前退出时录到整段视频
+let shadowPoll = null;
+let shadowTake = null;          // 上一次录音解码出来的 AudioBuffer
+let shadowTakeSrc = null;       // 正在播的那一路
+let shadowClock = null;         // {tRec, tPlay},毫秒,performance.now() 时间
+let shadowSpan = null;          // 这次跟的句子在原速时间轴上的 [a, b]
+// 原声此刻走的是哪条路。路由是全局的,所以它必须有个能查的状态:停在
+// 'panned' 上意味着之后的普通播放只会单边出声,而屏幕上完全看不出来。
+let shadowRoute = 'direct';     // direct | panned
+
+// 开麦之后先等这么久再起播。MediaRecorder 的 start() 返回不等于已经在取数,
+// 这段提前量会在回放时按 tRec 算回去,所以它只会让录音更完整。
+const SHADOW_ARM_MS = 150;
+
+// 原声到句子末尾就停,人还没说完 —— 影子跟读的尾巴永远落后半个到一个词。
+// 立刻停会把最后一个词切掉,回放里听起来像自己漏了字。
+const SHADOW_TAIL_MS = 1600;
+
+function setShadowState(s) {
+  shadowState = s;
+  shadowBtn.classList.toggle('on', s === 'recording');
+  shadowBtn.classList.toggle('play', s === 'playing');
+  shadowBtn.textContent = {
+    idle: '🎧 影子跟读',
+    recording: '⏹ 跟读中,再点一次结束',
+    decoding: '⏳ 处理录音…',
+    playing: '⏹ 停止左右耳回放',
+  }[s] || '🎧 影子跟读';
+}
+
+// 任何别的播放路径都要先把影子回放收掉:分轨路由是全局的,留在左声道上的话
+// 下一次普通播放只会从左耳出来,而屏幕上完全看不出来。
+function shadowQuiet() {
+  if (shadowState !== 'idle') shadowAbort();
+}
+
+function stopShadowAudio() {
+  clearInterval(shadowPoll);
+  shadowPoll = null;
+  if (shadowTakeSrc) {
+    const s = shadowTakeSrc;
+    shadowTakeSrc = null;
+    s.onended = null;
+    try { s.stop(); } catch (e) {}
+    try { s.disconnect(); } catch (e) {}
+  }
+  // 原声接回直连。不恢复的话,普通播放会一直是单边。
+  if (SHADOW.src && SHADOW.out) {
+    try { SHADOW.src.disconnect(); } catch (e) {}
+    try { SHADOW.src.connect(SHADOW.out); } catch (e) {}
+  }
+  shadowRoute = 'direct';
+}
+
+function finishShadowPlay() {
+  stopShadowAudio();
+  if (shadowState === 'playing') {
+    if (A && !A.paused) A.pause();
+    setShadowState('idle');
+  }
+}
+
+function shadowAbort() {
+  clearTimeout(shadowRecTimer);
+  shadowRecTimer = null;
+  if (shadowRec && shadowRec.state !== 'inactive') {
+    shadowRec.onstop = null;      // 不要走"解码并回放"那条路
+    try { shadowRec.stop(); } catch (e) {}
+  }
+  shadowRec = null;
+  if (shadowStream) {
+    shadowStream.getTracks().forEach(t => t.stop());
+    shadowStream = null;
+  }
+  shadowChunks = null;
+  stopShadowAudio();
+  setShadowState('idle');
+}
+
+async function shadowStart() {
+  shadowQuiet();
+  if (takeEl || abMode) stopListen();
+
+  // 和录音跟读同一套选句逻辑:优先显示屏上那一句,而不是从播放头推。
+  const shownNow = loop && loopIndex >= 0 ? loopIndex
+    : (cur >= 0 ? cur : idxAtOrig(A.currentTime * speed));
+  const i = shownNow;
+  if (i < 0) { flash('先选中一句再跟读'); return; }
+  if (!navigator.mediaDevices || !window.MediaRecorder) {
+    flash('这个浏览器不支持录音'); return;
+  }
+  if (!SHADOW.ctx || !SHADOW.pan) {
+    flash('这个浏览器不支持左右分轨回放'); return;
+  }
+
+  shadowIndex = i;
+  shadowSpan = loopSpan(i);
+  if (loop) stopLoop();
+  A.pause();
+
+  try {
+    // 先开麦,再起播。getUserMedia 要 200-500ms,倒过来的话每次都吃掉句子
+    // 开头,而开头恰恰是最该听清的地方。
+    //
+    // 三个约束全关:这段录音是给耳朵听的,不是给检测器算的。降噪会削掉辅音
+    // 的齿音,自动增益会把轻重读拉平 —— 而强弱和齿音正是回放里最该听见的
+    // 东西。评分模式那边必须开着它们,这里正好相反。
+    shadowStream = await navigator.mediaDevices.getUserMedia({
+      audio: { echoCancellation: false, noiseSuppression: false,
+               autoGainControl: false }
+    });
+
+    const types = ['audio/webm;codecs=opus', 'audio/webm',
+                   'audio/mp4;codecs=mp4a.40.2', 'audio/mp4'];
+    const mime = types.find(t => MediaRecorder.isTypeSupported(t)) || '';
+    shadowRec = mime ? new MediaRecorder(shadowStream, { mimeType: mime })
+                     : new MediaRecorder(shadowStream);
+    shadowChunks = [];
+    shadowRec.ondataavailable =
+      e => { if (e.data && e.data.size) shadowChunks.push(e.data); };
+    shadowRec.onstop = shadowFinish;
+
+    setShadowState('recording');
+    shadowRec.start();
+    shadowClock = { tRec: performance.now(), tPlay: 0 };
+
+    await new Promise(r => setTimeout(r, SHADOW_ARM_MS));
+    await shadowRunOriginal(shadowSpan);
+  } catch (e) {
+    // 原因要露出来,不能只是把状态复位:静默的 catch 在这里会变成一个
+    // 什么都不做的按钮。
+    console.error('shadow flow failed:', e);
+    flash('影子跟读失败:' + ((e && e.message) || e));
+    shadowAbort();
+  }
+}
+
+async function shadowRunOriginal(sp) {
+  const aMedia = (sp.a + 0.01) / speed;
+  A.currentTime = aMedia;
+  if (typeof ensureRunning === 'function') ensureRunning();
+  A.play().catch(() => {});
+
+  // 等 currentTime 真的走起来,再倒推"原声到达句子起点"的时刻。直接取
+  // play() 的返回值不行:那一刻解码器可能还没出声,而几十毫秒的误差落在两
+  // 只耳朵之间就是一层回声。
+  await new Promise(r => setTimeout(r, 90));
+  const elapsed = Math.max(0, A.currentTime - aMedia);
+  shadowClock.tPlay = performance.now() - elapsed * 1000;
+
+  // 硬上限跟着句子长度和速度走。固定 20s 在 0.5x 的长句上必然截断,而截断
+  // 之后回放听起来就像自己漏了半句。
+  const maxMs = ((sp.b - sp.a) / speed) * 1000 + SHADOW_TAIL_MS + 3000;
+  clearTimeout(shadowRecTimer);
+  shadowRecTimer = setTimeout(shadowStop, maxMs);
+
+  await new Promise(res => {
+    let done = false;
+    const finish = () => {
+      if (done) return;
+      done = true;
+      clearInterval(shadowPoll);
+      shadowPoll = null;
+      A.removeEventListener('ended', onE);
+      res();
+    };
+    const onE = () => finish();
+    shadowPoll = setInterval(() => {
+      if (A.currentTime * speed >= sp.b - 0.02) finish();
+    }, 30);
+    A.addEventListener('ended', onE, { once: true });
+    if (A.currentTime * speed >= sp.b - 0.02) finish();
+  });
+
+  clearTimeout(shadowRecTimer);
+  shadowRecTimer = setTimeout(shadowStop, SHADOW_TAIL_MS);
+}
+
+function shadowStop() {
+  clearTimeout(shadowRecTimer);
+  shadowRecTimer = null;
+  if (shadowRec && shadowRec.state !== 'inactive') shadowRec.stop();
+}
+
+function shadowFinish() {
+  clearTimeout(shadowRecTimer);
+  shadowRecTimer = null;
+  if (shadowStream) {
+    shadowStream.getTracks().forEach(t => t.stop());
+    shadowStream = null;
+  }
+  const blob = new Blob(shadowChunks || [],
+    { type: (shadowRec && shadowRec.mimeType) || 'audio/webm' });
+  shadowChunks = null;
+  if (A && !A.paused) A.pause();
+
+  if (blob.size < 1200) { flash('录音太短,没有听到声音'); shadowAbort(); return; }
+
+  setShadowState('decoding');
+  shadowDecode(blob).then(buf => {
+    shadowTake = buf;
+    shadowbar.hidden = false;
+    shadowPlay();
+  }).catch(e => {
+    console.error('shadow decode failed:', e);
+    flash('这段录音解不开:' + ((e && e.message) || e));
+    shadowAbort();
+  });
+}
+
+function shadowDecode(blob) {
+  const ctx = SHADOW.ctx;
+  return blob.arrayBuffer().then(ab => new Promise((res, rej) => {
+    // Safari 只有回调形式,promise 形式在那边会直接抛。
+    let r;
+    try { r = ctx.decodeAudioData(ab, res, rej); }
+    catch (e) { rej(e); return; }
+    if (r && r.then) r.then(res, rej);
+  }));
+}
+
+function shadowPlay() {
+  if (!shadowTake) return;
+  if (!SHADOW.ctx || !SHADOW.pan || !SHADOW.src) {
+    flash('这个浏览器不支持左右分轨回放'); return;
+  }
+  if (takeEl || abMode) stopListen();
+  finishShadowPlay();
+
+  const ctx = SHADOW.ctx, pan = SHADOW.pan;
+  const sp = shadowSpan || loopSpan(shadowIndex);
+
+  // 原声走左耳。panner 只在这段时间接上 src:speech.m4a 是单声道,而
+  // StereoPanner 对单声道输入在 pan=0 时给的是 cos45°/sin45°,常驻会把普通
+  // 播放整体压低 3dB —— 这种退化没人会归因到跟读功能上。
+  pan.pan.value = -1;
+  try { SHADOW.src.disconnect(); } catch (e) {}
+  try { SHADOW.src.connect(pan); } catch (e) {}
+  shadowRoute = 'panned';
+
+  const aMedia = (sp.a + 0.01) / speed;
+  A.currentTime = aMedia;
+  if (typeof ensureRunning === 'function') ensureRunning();
+  A.play().catch(() => {});
+
+  setShadowState('playing');
+  shadowbar.hidden = false;
+
+  // 排录音。等 currentTime 走起来,两边用的是同一块时钟:
+  //   tOrig = 原声到达句子起点的 ctx 时刻
+  //   tRec  = 录音第 0 秒的 ctx 时刻
+  // 同一绝对时刻下,录音的第 (p + d) 秒对应原声的第 p 秒,所以录音要从
+  // off = 原声此刻的位置 + d 起播。d 是录音比原声早开的那段提前量。
+  setTimeout(() => {
+    if (shadowState !== 'playing' || !shadowTake) return;
+    const elapsed = Math.max(0, A.currentTime - aMedia);
+    const tOrig = ctx.currentTime - elapsed;
+    const d = (shadowClock.tPlay - shadowClock.tRec) / 1000;
+    const tRec = tOrig - d;
+    const T = Math.max(ctx.currentTime + 0.01, tOrig);
+    const off = T - tRec;
+
+    const src = ctx.createBufferSource();
+    src.buffer = shadowTake;
+    const tpan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
+    if (tpan) {
+      tpan.pan.value = 1;
+      src.connect(tpan);
+      tpan.connect(SHADOW.out);
+    } else {
+      src.connect(SHADOW.out);
+    }
+    shadowTakeSrc = src;
+    src.onended = () => { if (shadowState === 'playing') finishShadowPlay(); };
+
+    if (off >= 0) {
+      src.start(T, Math.min(off, Math.max(0, shadowTake.duration - 0.02)));
+    } else {
+      // 录音开得比原声晚(不该发生,但保住这条路径):等它真正开始那一刻。
+      src.start(T - off, 0);
+    }
+  }, 60);
+
+  // 原声跑过句子末尾还要再等一会儿才收:影子跟读的人永远落后原声半个到一个
+  // 词,按 sp.b 立刻停会把学习者最后那个词切掉 —— 而那恰恰是最该听的一句。
+  clearInterval(shadowPoll);
+  shadowPoll = setInterval(() => {
+    if (!A.paused && A.currentTime * speed >= sp.b + 1.3) finishShadowPlay();
+  }, 40);
+}
+
+function shadowLevel() {
+  const m = SHADOW.meter;
+  if (!m) return null;
+  const buf = new Float32Array(m.la.fftSize);
+  const rms = a => {
+    a.getFloatTimeDomainData(buf);
+    let s = 0;
+    for (let i = 0; i < buf.length; i++) s += buf[i] * buf[i];
+    return Math.sqrt(s / buf.length);
+  };
+  return { l: rms(m.la), r: rms(m.ra) };
+}
+
 // ---------------------------------------------------------------- bind
 function bind() {
   const play = document.getElementById('play');
@@ -1205,8 +1548,55 @@ function bind() {
   let audioCtx = null;
   try {
     audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+
+    // 总和点。GainNode 乘 1.0 是比特透明的,用它换一个能同时挂分轨和测量
+    // 两条支路的地方:影子跟读的左右分离在这里汇合,验证脚本也从这里量 L/R。
+    const out = audioCtx.createGain();
+    out.gain.value = 1;
+    out.connect(audioCtx.destination);
+
     const src = audioCtx.createMediaElementSource(A);
-    src.connect(audioCtx.destination);
+    src.connect(out);            // 默认直连 —— 和加这套东西之前完全一样
+
+    // 分轨用的 panner 先建好但不接 src。speech.m4a 是单声道,而 StereoPanner
+    // 对单声道输入在 pan=0 时输出 cos45°/sin45°,常驻会把普通播放压低 3dB。
+    // 所以它只在影子回放期间被接进链路,结束就摘掉。
+    const pan = audioCtx.createStereoPanner
+      ? audioCtx.createStereoPanner() : null;
+    if (pan) pan.connect(out);
+
+    // 无源抽头:splitter 没有输出,不影响声音,只是把总输出拆成左右两路
+    // 分别喂给分析器。
+    let meter = null;
+    try {
+      const split = audioCtx.createChannelSplitter(2);
+      const la = audioCtx.createAnalyser(), ra = audioCtx.createAnalyser();
+      // 4096 帧 ≈ 85ms。1024 帧只有 21ms,落在一个音节间隙里就报静音,读出来
+      // 的是一条满是尖刺的曲线 —— 那是采样噪声,不是路由问题。
+      la.fftSize = 4096; ra.fftSize = 4096;
+      split.connect(la, 0); split.connect(ra, 1);
+      out.connect(split);
+      meter = { la, ra };
+    } catch (e) {
+      console.warn('shadow meter unavailable:', e);
+    }
+
+    SHADOW.ctx = audioCtx; SHADOW.src = src; SHADOW.pan = pan;
+    SHADOW.out = out; SHADOW.meter = meter;
+    // 检查脚本读这一组。判据不是"按钮存在",是 L/R 两个通道里各自的能量。
+    window.__shadow = {
+      state: () => shadowState,
+      pan: () => (SHADOW.pan ? SHADOW.pan.pan.value : null),
+      level: () => shadowLevel(),
+      clock: () => shadowClock,
+      take: () => (shadowTake ? shadowTake.duration : null),
+      // 录音解码后的内容本身,给检查脚本量它到底装了多少声音。时长和内容是
+      // 两件事:一个 7 秒的 buffer 可以只有 1 秒有声。
+      buffer: () => shadowTake,
+      index: () => shadowIndex,
+      ctxState: () => (SHADOW.ctx ? SHADOW.ctx.state : null),
+      route: () => shadowRoute,
+    };
 
     // Autoplay policies may leave the context suspended; a click or keypress
     // is the only reliable moment to lift it.
@@ -1267,6 +1657,20 @@ function bind() {
     if (micState === 'idle') micStart();
   };
 
+  shadowBtn.onclick = () => {
+    ensureRunning();
+    if (shadowState === 'idle') shadowStart();
+    else if (shadowState === 'recording') shadowStop();
+    else if (shadowState === 'playing') finishShadowPlay();
+    // decoding:还在解码,再点没有意义,等它自己进 playing
+  };
+
+  document.getElementById('shadowReplay').onclick = () => {
+    ensureRunning();
+    if (shadowState === 'playing') finishShadowPlay();
+    else if (shadowState === 'idle') shadowPlay();
+  };
+
   // seek bar
   const T = document.getElementById('track');
   const seek = ev => {
@@ -1280,13 +1684,18 @@ function bind() {
   window.addEventListener('mouseup', () => drag = false);
   T.addEventListener('touchstart', e => seek(e.touches[0]), { passive: true });
 
-  // keyboard: space play/pause, L loop, R replay, V record
+  // keyboard: space play/pause, L loop, R replay, V record, S shadow
   window.addEventListener('keydown', e => {
+    // 打字时不要抢键。视频网址里几乎每一个都含 s(v 也一样),不挡的话一边
+    // 输入网址一边就开始录音/跟读。这条对所有快捷键都成立,包括空格。
+    const t = e.target;
+    if (t && (t.tagName === 'INPUT' || t.tagName === 'TEXTAREA')) return;
     ensureRunning();
     if (e.code === 'Space') { e.preventDefault(); A.paused ? A.play() : A.pause(); }
     if (e.key === 'l' || e.key === 'L') loop ? stopLoop() : startLoop();
     if (e.key === 'r' || e.key === 'R') document.getElementById('rep').click();
     if (e.key === 'v' || e.key === 'V') micBtn.click();
+    if (e.key === 's' || e.key === 'S') shadowBtn.click();
   });
 }
 
