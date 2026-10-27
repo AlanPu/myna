@@ -353,8 +353,26 @@ async function poll() {
   } else {
     if (!done) {
       done = true;
-      blog.innerHTML += `\n<span class="r">生成失败(exit ${s.rc}),` +
-        '播放器仍是上一次的版本。</span>';
+      // Two very different failures used to read the same sentence here.
+      // rebuild.py writes the manifest and renders the audio BEFORE step 7
+      // runs the checks, so a failed verification leaves the NEW video on
+      // disk — "播放器仍是上一次的版本" was untrue exactly in the common case,
+      // and it hid the fact that the only thing missing was the sign-off.
+      // `installed` comes from the server, which stamps the manifest before
+      // the child starts and compares it after it exits.
+      if (s.installed) {
+        blog.innerHTML += `\n<span class="r">自检未通过(exit ${s.rc})。</span>` +
+          '新视频的字幕和音频已经写入,可以加载查看(未获准交付): ' +
+          '<a href="#" id="applynew">加载这一版</a>';
+        const link = document.getElementById('applynew');
+        if (link) link.addEventListener('click', e => {
+          e.preventDefault();
+          location.reload(true);
+        });
+      } else {
+        blog.innerHTML += `\n<span class="r">生成失败(exit ${s.rc}),` +
+          '播放器仍是上一次的版本。</span>';
+      }
       vgo.disabled = false;
     }
   }

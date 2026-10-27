@@ -55,7 +55,17 @@ def fetch_audio(vid: str, out_dir: Path) -> Path:
     if not os.path.exists(yt):
         yt = shutil.which("yt-dlp") or "yt-dlp"
     print(f"[1/7] downloading audio for {vid} …")
-    subprocess.run([yt, "--no-warnings", "-f", "251", "-o", str(raw),
+    # `251/ba`, not `251`. When a video carries several audio tracks —
+    # YouTube's auto-dubbing publishes the same video in twenty languages —
+    # every format id gets a per-track suffix: the original English track is
+    # `251-19`, and a bare `251` then matches nothing at all, so the build died
+    # with "Requested format is not available" before touching the network.
+    # The fallback `ba` resolves to the default track, and on the dubbed videos
+    # checked YouTube marks the original as the default — which is what the
+    # captions fetched in step 2 describe, so the two halves stay paired.
+    # Single-track videos are unaffected: `251` still wins the selection there
+    # (verified on the three cached videos, all still `251` opus).
+    subprocess.run([yt, "--no-warnings", "-f", "251/ba", "-o", str(raw),
                     f"https://www.youtube.com/watch?v={vid}"], check=True)
     # Match this video's file specifically. A bare native.* glob would happily
     # return a different video's cached audio, producing a clip whose words do
@@ -116,7 +126,8 @@ def main() -> int:
             # network blocked). The browser shows this log, so say it in the
             # user's terms and stop here rather than dumping a traceback.
             print(f"\n下载失败:{vid} 无法获取音频。")
-            print("可能原因:视频不存在/为私有、年龄限制、地区限制,或网络/代理不通。")
+            print("可能原因:视频不存在/为私有、年龄限制、地区限制、网络/代理不通,"
+                  "或该视频没有可用的音频格式(上一行 yt-dlp 的原文更具体)。")
             return 1
     else:
         print(f"[1/7] reusing {native}")

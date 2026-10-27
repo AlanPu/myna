@@ -63,7 +63,30 @@ PROXY = os.environ.get("MYNA_PROXY", "http://127.0.0.1:7890")
 _lock = threading.Lock()
 _proc: subprocess.Popen | None = None
 _log: list[str] = []
-_state = {"status": "idle", "video": None, "title": None, "rc": None}
+_state = {"status": "idle", "video": None, "title": None, "rc": None,
+          "installed": False}
+
+# Identity of the player manifest when the current build started. See
+# manifest_stamp() for why the exit code alone cannot answer "did the player
+# change?".
+_before: tuple[int, int] | None = None
+
+
+def manifest_stamp() -> tuple[int, int] | None:
+    """(mtime_ns, size) of player_captions.json, or None when absent.
+
+    rebuild.py writes the manifest in step 6 and only then runs the checks in
+    step 7, so an exit code of 1 says nothing about what is on disk:
+    a failed verification leaves the NEW video installed, while a failed
+    download (no audio, no captions) leaves the previous one untouched. The
+    page has to tell those two apart to say anything true, and comparing the
+    file across the build is the cheapest fact that does it.
+    """
+    try:
+        st = (PLAYER / "player_captions.json").stat()
+        return (st.st_mtime_ns, st.st_size)
+    except OSError:
+        return None
 
 
 def log(line: str) -> None:
@@ -82,6 +105,10 @@ def pump() -> None:
         p.wait()
         _state["status"] = "done" if p.returncode == 0 else "failed"
         _state["rc"] = p.returncode
+        # Did this build actually replace the video? A verification failure
+        # still leaves the new one on disk, and the page must not claim
+        # otherwise.
+        _state["installed"] = manifest_stamp() != _before
         if p.returncode == 0:
             _state["video"] = _pending.get("video")
             _state["title"] = _pending.get("title")
@@ -99,7 +126,7 @@ _pending: dict = {}
 
 
 def start_build(url: str, start: float, length: float) -> tuple[bool, str]:
-    global _proc
+    global _proc, _before
     # The ID is only used for the log line; rebuild.py parses it again, so a
     # failure here must not stop the build.
     vid = subprocess.run(
@@ -119,7 +146,11 @@ def start_build(url: str, start: float, length: float) -> tuple[bool, str]:
     if not _lock.acquire(blocking=False):
         return False, "a build is already running"
     _log.clear()
-    _state.update(status="building", video=vid, title=None, rc=None)
+    _state.update(status="building", video=vid, title=None, rc=None,
+                  installed=False)
+    # Stamp the manifest immediately before the child starts, so a rebuild of
+    # the same video still counts as a change.
+    _before = manifest_stamp()
     _proc = subprocess.Popen(cmd, cwd=ROOT, env=env, text=True,
                              stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
                              bufsize=1)
@@ -261,10 +292,15 @@ class Handler(SimpleHTTPRequestHandler):
 
     def do_GET(self) -> None:
         if self.path == "/api/build":
-            with _lock:
-                running = _proc is not None
+            # No lock here. The build holds _lock for its whole lifetime, so
+            # taking it just to read one reference blocked every poll until the
+            # child exited: the page then showed an empty log for minutes and
+            # the entire transcript at once at the end. Reading the reference
+            # is atomic, which is all this needs.
+            running = _proc is not None
             return self._json(200, {"running": running, "status": _state["status"],
                                     "log": _log[-400:], "rc": _state["rc"],
+                                    "installed": _state["installed"],
                                     **current()})
         if self.path.startswith("/api/score"):
             # What the browser needs to render a scored sentence: where its
