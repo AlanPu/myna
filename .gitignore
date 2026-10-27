@@ -27,5 +27,10 @@ player/shots/
 player/player_captions.json
 player/energy.json
 
+# Local tooling state. .workbuddy/ holds the assistant's own session notes for
+# this working copy — per-machine, per-session, and of no use to anyone who
+# clones the repository. Same class as .vscode/ or .idea/.
+.workbuddy/
+
 # macOS
 .DS_Store
