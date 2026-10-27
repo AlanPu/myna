@@ -148,8 +148,10 @@
   .ghost.sm.on{border-color:var(--accent);color:var(--accent)}
   .listhint{font-size:11.5px;color:var(--dim)}
   /* ---- 影子跟读:左右分轨回放,不打分 ---------------------------------- */
+  /* 状态类名不能叫 .play —— 那个类已经被进度条的填充块占了(position:absolute;
+     top:0;bottom:0),按钮会跟着被拉成整屏高,半透明背景就成了左边一道蓝框。 */
   button.shadow.on{background:#0d9488;color:#fff;animation:pulse 1.3s ease-in-out infinite}
-  button.shadow.play{background:#134e6f;color:#cfe9ff;border-color:#2f6f8f}
+  button.shadow.playing{background:#134e6f;color:#cfe9ff;border-color:#2f6f8f}
   .shadowbar{margin-top:12px}
 </style>
 </head>
@@ -1247,7 +1249,7 @@ const SHADOW_TAIL_MS = 1600;
 function setShadowState(s) {
   shadowState = s;
   shadowBtn.classList.toggle('on', s === 'recording');
-  shadowBtn.classList.toggle('play', s === 'playing');
+  shadowBtn.classList.toggle('playing', s === 'playing');
   shadowBtn.textContent = {
     idle: '🎧 影子跟读',
     recording: '⏹ 跟读中,再点一次结束',

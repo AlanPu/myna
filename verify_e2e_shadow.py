@@ -241,6 +241,32 @@ def main() -> int:
                       f"({take}s vs {need:.2f}s) — it was cut off")
                 ok = False
 
+            # ---- the button must still be a button ----------------------
+            # 第一次实现给回放态加了类名 `play`,而 `.play` 已经被进度条的填充块
+            # 占用(position:absolute;top:0;bottom:0;opacity:.3):按钮被拉成整屏
+            # 高,在页面左边留下一道半透明蓝框。在 DOM 里它仍然是一个
+            # textContent 正确的 button,只有几何能发现这件事。
+            geo = page.evaluate("""() => {
+              const b = document.getElementById('shadowBtn');
+              const r = b.getBoundingClientRect();
+              const s = getComputedStyle(b);
+              return {x: Math.round(r.x), y: Math.round(r.y),
+                      w: Math.round(r.width), h: Math.round(r.height),
+                      pos: s.position, op: parseFloat(s.opacity)};
+            }""")
+            print(f"button box    : {geo['w']}x{geo['h']} at "
+                  f"({geo['x']},{geo['y']}) position={geo['pos']} "
+                  f"opacity={geo['op']}")
+            if geo["pos"] == "absolute" or geo["h"] > 60 or geo["w"] > 320:
+                print("\nFAIL: 影子跟读 button is no longer laid out as a button "
+                      "— it inherited some other element's positioning. This "
+                      "shows up as a coloured band across the page.")
+                ok = False
+            if geo["op"] < 0.95:
+                print("\nFAIL: the button is translucent during playback — it "
+                      "picked up the scrub fill's opacity")
+                ok = False
+
             # ---- the actual waveform judgement ---------------------------
             # Short window on purpose: the replay ends on its own a beat after
             # the sentence does, and a sampling loop that outlives it would make
