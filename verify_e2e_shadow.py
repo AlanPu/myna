@@ -29,6 +29,7 @@ from __future__ import annotations
 
 import glob
 import json
+import math
 import os
 import socket
 import subprocess
@@ -88,7 +89,13 @@ def fake_mic_wav(index: int) -> str | None:
     subprocess.run(
         ["ffmpeg", "-y", "-v", "error",
          "-ss", str(s0), "-t", str(s1 - s0), "-i", src[0],
-         "-af", f"adelay={int(LEAD*1000)}|{int(LEAD*1000)},apad=pad_dur=8",
+         # -12dB on purpose. The fake device otherwise hands the page a
+         # full-scale copy of the source, which is louder than any real
+         # microphone and would hide the volume matching entirely: a take that
+         # is already as loud as the original never needs any gain. A laptop
+         # mic at speaking distance is roughly this quiet.
+         "-af", f"volume=-12dB,adelay={int(LEAD*1000)}|{int(LEAD*1000)},"
+                "apad=pad_dur=8",
          "-ac", "1", "-ar", "48000", out], check=True)
     return out
 
@@ -311,6 +318,30 @@ def main() -> int:
                 i = left_only[0]
                 print(f"separation    : sample {i} left={levels[i]['l']:.4f} "
                       f"right={levels[i]['r']:.4f} (left-only)")
+
+            # ---- the two ears must be at comparable loudness -------------
+            # 录音关掉了 AGC,而原声是做过后期的人声,两边天然差十几 dB ——
+            # 用户听到的是"我的声音很小",而这跟发音没关系。
+            #
+            # 判据不能看峰值:take 里只装着句子的某一段,峰值和整句无关(实测
+            # 放过一次,右耳峰值反而是左耳的 1.6 倍,而 RMS 已经对齐)。要对齐
+            # 的是"语音电平"本身,所以直接问:放大之后,两侧的语音 RMS 相等吗。
+            gain = page.evaluate("() => window.__shadow.gain()")
+            lvls = page.evaluate("() => window.__shadow.levels()")
+            gdb = 20 * math.log10(gain) if gain and gain > 0 else -99
+            post = lvls["take"] * (gain or 0)
+            err = 20 * math.log10(post / lvls["orig"]) if lvls["orig"] else -99
+            print(f"take gain     : {gain:.2f}x ({gdb:+.1f}dB)")
+            print(f"speech rms    : orig {lvls['orig']:.4f}  take {lvls['take']:.4f}"
+                  f"  -> {post:.4f} after gain ({err:+.1f}dB off)")
+            if gain is None or gain <= 1.05:
+                print("\nFAIL: a quiet take was not amplified — the right ear "
+                      "would stay far below the original")
+                ok = False
+            if abs(err) > 1.5:
+                print(f"\nFAIL: after matching, the take is still {abs(err):.1f}dB "
+                      f"off the original — the two statistics are not comparable")
+                ok = False
 
             # ---- stopping must restore the normal route -----------------
             # A second press means "stop", never "start another take". If the

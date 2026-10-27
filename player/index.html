@@ -1232,8 +1232,12 @@ let shadowRecTimer = null;      // 硬上限,防止提前退出时录到整段�
 let shadowPoll = null;
 let shadowTake = null;          // 上一次录音解码出来的 AudioBuffer
 let shadowTakeSrc = null;       // 正在播的那一路
+let shadowTakeGain = 1;         // 上一回实际用的音量倍数,给检查脚本查
 let shadowClock = null;         // {tRec, tPlay},毫秒,performance.now() 时间
 let shadowSpan = null;          // 这次跟的句子在原速时间轴上的 [a, b]
+// 录音时顺手量原声的语音电平。左右耳要对齐音量,得知道"这一条素材有多响",
+// 而不是假设一个固定值 —— 不同视频的响度差得很远。
+let shadowOrigLv = [];
 // 原声此刻走的是哪条路。路由是全局的,所以它必须有个能查的状态:停在
 // 'panned' 上意味着之后的普通播放只会单边出声,而屏幕上完全看不出来。
 let shadowRoute = 'direct';     // direct | panned
@@ -1325,6 +1329,7 @@ async function shadowStart() {
 
   shadowIndex = i;
   shadowSpan = loopSpan(i);
+  shadowOrigLv = [];
   if (loop) stopLoop();
   A.pause();
 
@@ -1396,6 +1401,10 @@ async function shadowRunOriginal(sp) {
     };
     const onE = () => finish();
     shadowPoll = setInterval(() => {
+      // 顺手给原声量个电平:回放时要把录音放大到跟它一般响,而响度是这条
+      // 素材自己的属性,不能写死。只统计有声的帧,静音会把均值拉低。
+      const lv = shadowLevel();
+      if (lv && lv.l > 1e-4) shadowOrigLv.push(lv.l);
       if (A.currentTime * speed >= sp.b - 0.02) finish();
     }, 30);
     A.addEventListener('ended', onE, { once: true });
@@ -1473,6 +1482,30 @@ function shadowPlay() {
   if (typeof ensureRunning === 'function') ensureRunning();
   A.play().catch(() => {});
 
+  // 音量对齐。
+  //
+  // 原声是做过后期的人声,而这里的录音把 AGC 关掉了 —— 正常距离对着笔记本
+  // 说话,语音 RMS 常常只有原声的六分之一到八分之一。左右耳差 15dB,听起来
+  // 就是"我的声音很小",而那跟发音本身毫无关系。固定乘一个倍数不行:换个
+  // 麦克风就过冲或者仍然偏小。所以两边各量一个语音电平,按比值放大。
+  //
+  // 两个闸门:最多 8×(约 +18dB,再往上就是录音本身有问题了),以及按峰值
+  // 收住不削波 —— 宁可少放大一点,也不要把齿音削成方波。
+  const takeRms = shadowSpeechRms(shadowFrameRms(shadowTake));
+  const origRms = shadowSpeechRms(shadowOrigLv) || 0.10;
+  let gain = 1;
+  if (takeRms > 1e-5) {
+    gain = origRms / takeRms;
+    gain = Math.max(0.5, Math.min(gain, 8));
+    const peak = shadowPeak(shadowTake);
+    if (peak > 1e-4) gain = Math.min(gain, 0.98 / peak);
+  }
+  shadowTakeGain = gain;
+  const gainDb = 20 * Math.log10(gain);
+  document.getElementById('shadowHint').textContent =
+    `左耳原声 · 右耳你的(${gainDb >= 0 ? '+' : ''}${gainDb.toFixed(1)}dB)` +
+    ' · 建议戴耳机';
+
   setShadowState('playing');
   shadowbar.hidden = false;
 
@@ -1492,13 +1525,16 @@ function shadowPlay() {
 
     const src = ctx.createBufferSource();
     src.buffer = shadowTake;
+    const trim = ctx.createGain();
+    trim.gain.value = gain;
+    src.connect(trim);
     const tpan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
     if (tpan) {
       tpan.pan.value = 1;
-      src.connect(tpan);
+      trim.connect(tpan);
       tpan.connect(SHADOW.out);
     } else {
-      src.connect(SHADOW.out);
+      trim.connect(SHADOW.out);
     }
     shadowTakeSrc = src;
     src.onended = () => { if (shadowState === 'playing') finishShadowPlay(); };
@@ -1530,6 +1566,47 @@ function shadowLevel() {
     return Math.sqrt(s / buf.length);
   };
   return { l: rms(m.la), r: rms(m.ra) };
+}
+
+// 一个 buffer 里每 50ms 的 RMS。只取第 0 声道:录音是单声道,而音量对齐
+// 关心的是电平,不是声场。
+function shadowFrameRms(buf) {
+  const d = buf.getChannelData(0);
+  const win = Math.max(1, Math.floor(buf.sampleRate * 0.05));
+  const out = [];
+  for (let i = 0; i + win <= d.length; i += win) {
+    let s = 0;
+    for (let j = i; j < i + win; j++) { const v = d[j]; s += v * v; }
+    out.push(Math.sqrt(s / win));
+  }
+  return out;
+}
+
+// "有声部分"的电平:丢掉低于峰值 10% 的帧再求均方根。
+//
+// 两边必须用同一个统计量。第一版原声侧只统计有声帧、录音侧却把接近静音的
+// 帧也算进均值 —— 静音的平方把均值拉低,增益算出来就偏大,右耳反而比左耳
+// 响一倍。这和 score.py 里"原声和录音走同一条分析链路"是同一个道理:
+// 两侧的偏差只有在共用一把尺子时才会互相抵消。
+function shadowSpeechRms(frames) {
+  if (!frames.length) return 0;
+  let mx = 0;
+  for (const v of frames) if (v > mx) mx = v;
+  if (mx <= 0) return 0;
+  const gate = mx * 0.1;
+  let s = 0, n = 0;
+  for (const v of frames) if (v > gate) { s += v * v; n++; }
+  return n ? Math.sqrt(s / n) : 0;
+}
+
+function shadowPeak(buf) {
+  const d = buf.getChannelData(0);
+  let p = 0;
+  for (let j = 0; j < d.length; j++) {
+    const v = d[j] < 0 ? -d[j] : d[j];
+    if (v > p) p = v;
+  }
+  return p;
 }
 
 // ---------------------------------------------------------------- bind
@@ -1595,6 +1672,13 @@ function bind() {
       // 录音解码后的内容本身,给检查脚本量它到底装了多少声音。时长和内容是
       // 两件事:一个 7 秒的 buffer 可以只有 1 秒有声。
       buffer: () => shadowTake,
+      gain: () => shadowTakeGain,
+      // 两侧各自的语音电平。增益不对时,唯一能回答"是谁测错了"的就是这两个
+      // 数 —— 浏览器里没有任何别的地方能看见它们。
+      levels: () => ({
+        orig: shadowSpeechRms(shadowOrigLv),
+        take: shadowTake ? shadowSpeechRms(shadowFrameRms(shadowTake)) : 0,
+      }),
       index: () => shadowIndex,
       ctxState: () => (SHADOW.ctx ? SHADOW.ctx.state : null),
       route: () => shadowRoute,
