@@ -39,7 +39,6 @@ import subprocess
 
 import numpy as np
 
-import onsets
 import wordmarks
 
 SR = wordmarks.SR
@@ -122,62 +121,50 @@ def peaks(pcm: np.ndarray) -> np.ndarray:
     if env.size < 10:
         return np.zeros(0)
 
-    # Two gates, chosen by how clean the recording is.
-    #
-    # The adaptive one from onsets.py exists because a single global threshold
-    # cannot follow a drifting noise floor. But it is deliberately strict, and
-    # applying it to a clean recording is a regression: on the original audio it
-    # found 19 of the 40 real syllables, because a 0.75s trailing window inside
-    # a short sentence is mostly speech and its "floor" is therefore speech.
-    #
-    # The discriminator is how loud the QUIET part of the signal is, not how
-    # wide the dynamic range is. Clean audio has frames that fall to nearly
-    # nothing between words; a phone recording in a room never does. Note that
-    # the loud/quiet ratio moves the wrong way — noise compresses the range —
-    # so it is not usable here.
     srt = np.sort(env)
     quiet = float(srt[int(env.size * 0.10)])
     loud = float(srt[int(env.size * 0.98)])
-    # Relative to the loudest frame: clean speech in this build sits near 0.01,
-    # 6dB-SNR hiss near 0.10.
-    floor_share = quiet / loud if loud > 1e-9 else 1.0
 
-    # Branch selection. This threshold is the single most consequential number
-    # in this function, and it was set too tight.
+    # One gate, scaled by the recording's own quiet level.
     #
-    # The discriminator between "clean" and "noisy" is how loud the QUIET part
-    # of the signal is relative to the loudest. Measured on this build: clean
-    # speech sits at 0.043, and a take with another person talking in it sits
-    # at 0.086-0.095. The old cut at 0.05 therefore routed three quarters of
-    # ordinary, mildly noisy takes into onsets.adaptive_gate — a branch built
-    # for severe broadband noise, whose raised gate then discarded quiet REAL
-    # syllables. That is the mechanism behind the symptom this whole change
-    # exists for: the learner reads perfectly, the room adds a hum, and the
-    # detector reports a third of the syllables.
+    # This used to branch: when the quiet part of the signal rose above 20% of
+    # the loudest frame, the take was handed to onsets.adaptive_gate — a
+    # per-frame mask built for severe broadband noise. Measurement says that
+    # branch is worse at EVERY noise level, on both tempos, so it is gone.
     #
-    # The gain from moving the cut to 0.20, as detected nuclei over reference
-    # nuclei over 8 sentences:
+    # Mean score over 8 sentences per video, take = the original audio plus
+    # white noise at the given SNR (higher is better, clean must not move):
     #
-    #     cut     clean   room@6dB  room@3dB  room@0dB
-    #     0.05    0.93      0.74      0.69      0.71
-    #     0.10    0.95      0.79      0.74      0.74
-    #     0.15    0.95      0.89      0.82      0.83
-    #     0.20    0.95      0.89      0.85      0.85   <- chosen
-    #     1.00    0.95      0.89      0.85      0.85
+    #                          clean   12dB    9dB     6dB     3dB
+    #   16-min clip (8.0s median sentence, 129 sentences measured)
+    #     adaptive branch       97.2   95.7   94.1    69.9    47.2
+    #     this gate             97.2   96.1   94.9    91.7    56.9
+    #   3-min clip (8.2s median but denser speech, 20 sentences)
+    #     adaptive branch       93.2   88.6   78.7    52.0    25.5
+    #     this gate             93.2   88.8   86.4    68.6    38.8
     #
-    # 0.20 sits on the plateau rather than at its edge, and the fact that 1.00
-    # scores identically is itself informative: the clean branch is simply
-    # better for this material, and the strict branch only earns its place on
-    # noise far worse than anything a learner records. The loud/quiet ratio is
-    # deliberately NOT the discriminator — noise compresses the dynamic range,
-    # so that measure moves the wrong way and was tried and rejected.
-    if floor_share > 0.20:
-        gate_frames, floor, peak = onsets.adaptive_gate(env.tolist())
-        idx, _ = wordmarks.nuclei(env, env_gate=max(floor * 2.0, peak * 0.075),
-                                  env_gate_frames=gate_frames)
-    else:
-        g = max(srt[int(env.size * 0.12)] * 2.4, loud * 0.045)
-        idx, _ = wordmarks.nuclei(env, env_gate=g)
+    # The reason the adaptive mask loses: its local floor comes from a 0.75s
+    # trailing window, and a take IS one sentence — inside a sentence that
+    # window is nearly all speech, so the "floor" is speech and real syllables
+    # fail the test. The failure is proportional to how dense the speech is,
+    # which is why the faster video lost more (78.7 vs 94.1 at 9dB) than the
+    # slower one. Nothing here is tuned to a tempo: the gate is a multiple of
+    # the recording's own quiet level, so it moves with the material instead of
+    # assuming where the pauses are.
+    #
+    # 2.0 and 0.038 sit in the middle of a plateau — 1.0/0.020 through
+    # 2.0/0.038 all score within 0.1 of each other on both videos, while
+    # 2.4/0.045 falls off sharply (32.1 and 18.4 at 3dB against 56.9 and 38.8,
+    # because it gates away real syllables). Picking the tightest multiple that
+    # still sits on the plateau keeps the false-peak risk at its lowest.
+    #
+    # Caveat worth keeping: these numbers come from added white noise, not from
+    # a real room with a hum that drifts. The adaptive mask was written for that
+    # drift, and no synthetic sweep can prove it is unnecessary there — only a
+    # real recording can. If a hum-heavy take ever scores absurdly low again,
+    # this is the line that was changed, and the branch is in git history.
+    g = max(quiet * 2.0, loud * 0.038)
+    idx, _ = wordmarks.nuclei(env, env_gate=g)
     return np.asarray(idx, dtype=np.float64) * HOP
 
 
