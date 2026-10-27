@@ -230,7 +230,78 @@ CASES = [
     ("lead", lambda x: shift(x, 400)),
 ]
 
-SENTENCES = [int(v) for v in sys.argv[1:]] or [3, 12, 34, 51, 102, 119, 153, 204]
+# Sentences to score. The tuple below is the shape this check was tuned on:
+# eight spread-out lines from the 16-minute clip (219 sentences). It cannot be
+# hardcoded, because the window length is a build parameter — a 3-minute build
+# has 20 sentences, and every index past 19 is an IndexError that kills the
+# whole check before a single number is printed. That is exactly what happened
+# on the first short video: the run produced no table at all, so the failure
+# was indistinguishable from a broken harness. Scale the same shape to whatever
+# the build actually contains.
+_TUNED = (3, 12, 34, 51, 102, 119, 153, 204)
+
+
+def pick_sentences(caps: list[dict]) -> tuple[list[int], int]:
+    """Indices to test: the tuned list when it fits, otherwise the same shape.
+
+    The tuned tuple is used verbatim on any video long enough to contain it.
+    Substituting an evenly-spread list there was tried and it is not a
+    cosmetic difference: on the 220-sentence clip it landed on lines that are
+    too short to align and on the noisy tail of the distribution, and turned
+    three assertions that pass on the tuned sample into marginal failures
+    (late 89.1 against a bar of 90.7, thin unscored, interference 86.8 against
+    86.7). The tuned list is part of the measurement, not a convenience.
+
+    Shorter builds scale the same shape: skip the opening line — on a clip
+    that starts with a title read it is not representative — always include the
+    last usable one, and take ``len(_TUNED)`` lines evenly between.
+
+    "Usable" now excludes lines too short to carry the defect being injected.
+    A 0.6s fragment with four reference nuclei cannot be read 25% faster and
+    still be scored: the take lands at three nuclei, under MIN_PEAKS, and the
+    scorer says so honestly ("语音太少,无法评分"). Sampling one of those made
+    the `thin` assertion fail on a build where nothing was wrong — it demanded
+    alignment from a pair that had nothing to align. Lines that short are
+    skipped and counted, which is the same rule the whole-corpus sweep already
+    uses ("N too short to align").
+    """
+    n = len(caps)
+
+    def usable(i: int) -> bool:
+        # Twice MIN_PEAKS, because the thinned take is what has to survive the
+        # cut: 0.75x of the reference is the smallest count this check creates.
+        return len(caps[i].get("ref_nuclei") or []) >= 2 * S.MIN_PEAKS
+
+    if n > max(_TUNED):
+        chosen = [i for i in _TUNED if i < n]
+        kept = [i for i in chosen if usable(i)]
+        return kept, len(chosen) - len(kept)
+    if n < 3:
+        return ([0] if n else []), 0
+
+    lo, hi = 2, n - 1
+    if hi - lo + 1 <= len(_TUNED):
+        return list(range(lo, hi + 1)), 0
+    step = (hi - lo) / (len(_TUNED) - 1)
+    picks = [lo + round(k * step) for k in range(len(_TUNED))]
+
+    # Repair, do not re-spread. Sliding the ladder to the usable pool shifted
+    # every pick at once and swung the marginal assertions to failure (late
+    # 85.9 against a bar of 85.5). Replacing only the impossible line with its
+    # nearest usable neighbour keeps the sample where it was.
+    out, repaired = [], 0
+    for i in picks:
+        if usable(i):
+            out.append(i)
+            continue
+        near = min((j for j in range(2, n) if usable(j)), key=lambda j: abs(j - i))
+        out.append(near)
+        repaired += 1
+    return sorted(set(out)), repaired
+
+
+SENTENCES, _SKIPPED = ([int(v) for v in sys.argv[1:]], 0) if sys.argv[1:] \
+    else pick_sentences(en["captions"])
 
 rows: dict[str, list] = {name: [] for name, _ in CASES}
 detail: list[str] = []
@@ -248,6 +319,8 @@ for i in SENTENCES:
             detail.append(f"    s{i:<4} {name:<6} score {r['score']}")
 
 print(f"source: {SRC}")
+print(f"sentences scored: {SENTENCES} (of {len(en['captions'])}"
+      + (f", {_SKIPPED} too short to carry the defect" if _SKIPPED else "") + ")")
 print("scores by injected defect (mean over "
       f"{len(SENTENCES)} sentences, original audio = 100):\n")
 print(f"  {'case':<8} {'mean':>7}  {'min':>6}  {'max':>6}   bars")
@@ -402,6 +475,15 @@ else:
               f"and it would show up as an inexplicable low score in a noisy "
               f"room.")
         ok = False
+
+if not ok and detail:
+    # `detail` was collected for this from the start and then thrown away, so a
+    # failure like "noise collapsed the score" arrived with no way to tell a
+    # systematic problem from one pathological sentence. Name the lines.
+    print("\nper-sentence detail for the injected defects "
+          "(a low value on ONE line is a quirk of that line; low everywhere "
+          "is the metric):")
+    print("\n".join(detail))
 
 print("\n" + ("PASS" if ok else "FAIL"))
 sys.exit(0 if ok else 1)

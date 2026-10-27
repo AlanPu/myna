@@ -46,10 +46,21 @@ def main():
             const n = M.captions.length;
             const words = M.captions.map(c =>
                 c.text.split(/\\s+/).filter(Boolean).length);
+            // A clip does not have to start speaking at 0. This video opens
+            // with ~7s of music before the first caption, so idxAtOrig(0)
+            // answers -1 — the page renders that as "准备开始" and lights
+            // nothing, which is correct. The walk used to begin there anyway:
+            // M.captions[-1] is undefined, countLit() then threw
+            // "Cannot read properties of undefined (reading 'i')", and the
+            // check died on the video instead of judging it. Start at the
+            // first line that actually exists.
+            const first = M.captions[0];
+            const t0 = Math.max(0, first.speech_start != null
+                ? first.speech_start : first.start);
             const lastT = M.captions[n-1].end + 1.0;
             const out = [];
-            let cur = idxAtOrig(0);
-            for (let t = 0; t < lastT; t += step) {
+            let cur = Math.max(0, idxAtOrig(t0));
+            for (let t = t0; t < lastT; t += step) {
                 const nx = idxAtOrig(t);
                 if (nx !== cur) {
                     // leaving line `cur` at time t
