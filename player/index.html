@@ -198,6 +198,7 @@
       <button class="ghost" id="loopBtn">🔁 循环跟读本句</button>
       <button class="ghost mic" id="micBtn">🎤 录音跟读</button>
       <button class="ghost shadow" id="shadowBtn">🎧 影子跟读</button>
+      <button class="ghost" id="nextBtn" title="换到下一句;上一句是在哪种模式下练的,就继续哪种">⏭ 下一句</button>
       <div class="scrub">
         <span class="t" id="t0">0.00</span>
         <div class="track" id="track">
@@ -540,8 +541,11 @@ function build() {
       stopListen();
     }
     seekOrig(c.start + 0.01);
-    if (typeof ensureRunning === 'function') ensureRunning();
-    if (A.paused) A.play();
+    // 选中只是选中:定位播放头、刷新高亮,不自动播放。
+    // 原来这里跟了一句 A.play(),于是"看一眼第 12 句长什么样"等于"从头放
+    // 一遍",而想听的人本来就有 ▶ 和 ↻ 重听本句两个按钮。
+    // 手动挑句子也意味着放弃了"续上一句的模式":再按下一句只换句,不自动开练。
+    practiceMode = null;
   };
 
   bind();
@@ -753,6 +757,12 @@ const scored = document.getElementById('scored');
 let mediaRec = null, micStream = null, micChunks = null;
 let micState = 'idle';          // idle | playing | recording | scoring
 let micIndex = -1, micT0 = 0, micStartedAt = 0;
+// 上一句是在哪个模式下练的:'mic' | 'shadow' | null(手动选句)。
+//
+// 「下一句」要续的是**模式**,不是**状态**。录制状态在句子结束时会归零
+// (shadowState 回到 idle、micIndex 归 -1),而用户想继续练的意图没有归零 ——
+// 恰恰在"刚练完、正在听回放"这个最常见的时刻,用状态去推模式是推不出来的。
+let practiceMode = null;
 
 const REC_MAX_MS = 20000;       // hard stop: a take is one sentence
 
@@ -768,21 +778,27 @@ function setMicState(s) {
   micBtn.disabled = (s === 'playing' || s === 'scoring');
 }
 
+// 显示屏上正在讲的那一句。
+//
+// 不用 idxAtOrig() 直接推:播放头停在两句之间的静默里时,它属于前一句,
+// 而按播放头推会读到后一句(历史上把"选中第 12 句"读成第 0 句的就是这个)。
+function shownIndex() {
+  if (loop && loopIndex >= 0) return loopIndex;
+  if (cur >= 0) return cur;
+  return idxAtOrig(A.currentTime * speed);
+}
+
 async function micStart() {
   // 影子回放占着输出路由,先收掉;评分那边的 A/B 也要求原声走直连。
   shadowQuiet();
-  // Prefer the sentence the display is already showing. idxAtOrig() infers a
-  // sentence from the playhead, and a playhead sitting in the gap between two
-  // lines belongs to the previous one — recording it there scored the take
-  // against the wrong reference entirely (index 0 instead of 12).
-  const shownNow = loop && loopIndex >= 0 ? loopIndex
-    : (cur >= 0 ? cur : idxAtOrig(A.currentTime * speed));
-  const i = shownNow;
+  // Prefer the sentence the display is already showing — see shownIndex().
+  const i = shownIndex();
   if (i < 0) { flash('先选中一句再录音'); return; }
   if (!navigator.mediaDevices || !window.MediaRecorder) {
     flash('这个浏览器不支持录音'); return;
   }
   micIndex = i;
+  practiceMode = 'mic';
   setMicState('playing');
 
   // Leave the loop running for the duration of the take, but it has to stop
@@ -1301,6 +1317,9 @@ function shadowAbort() {
   shadowRecTimer = null;
   if (shadowRec && shadowRec.state !== 'inactive') {
     shadowRec.onstop = null;      // 不要走"解码并回放"那条路
+    // 收数据的那只也要摘掉:stop() 之后队列里还有一次 dataavailable,
+    // 而下面紧接着就把 shadowChunks 置 null 了。
+    shadowRec.ondataavailable = null;
     try { shadowRec.stop(); } catch (e) {}
   }
   shadowRec = null;
@@ -1318,9 +1337,7 @@ async function shadowStart() {
   if (takeEl || abMode) stopListen();
 
   // 和录音跟读同一套选句逻辑:优先显示屏上那一句,而不是从播放头推。
-  const shownNow = loop && loopIndex >= 0 ? loopIndex
-    : (cur >= 0 ? cur : idxAtOrig(A.currentTime * speed));
-  const i = shownNow;
+  const i = shownIndex();
   if (i < 0) { flash('先选中一句再跟读'); return; }
   if (!navigator.mediaDevices || !window.MediaRecorder) {
     flash('这个浏览器不支持录音'); return;
@@ -1330,6 +1347,7 @@ async function shadowStart() {
   }
 
   shadowIndex = i;
+  practiceMode = 'shadow';
   shadowSpan = loopSpan(i);
   shadowOrigLv = [];
   if (loop) stopLoop();
@@ -1353,8 +1371,11 @@ async function shadowStart() {
     shadowRec = mime ? new MediaRecorder(shadowStream, { mimeType: mime })
                      : new MediaRecorder(shadowStream);
     shadowChunks = [];
+    // `shadowChunks &&`:中断录音(shadowQuiet → shadowAbort)会把它置 null,而
+    // 已经排进队列的 dataavailable 仍会跑一次 —— 换模式那一刻就报
+    // "Cannot read properties of null (reading 'push')",把后面的收尾全打断。
     shadowRec.ondataavailable =
-      e => { if (e.data && e.data.size) shadowChunks.push(e.data); };
+      e => { if (shadowChunks && e.data && e.data.size) shadowChunks.push(e.data); };
     shadowRec.onstop = shadowFinish;
 
     setShadowState('recording');
@@ -1370,6 +1391,38 @@ async function shadowStart() {
     flash('影子跟读失败:' + ((e && e.message) || e));
     shadowAbort();
   }
+}
+
+// 下一句:换到下一行,并按上一句用的模式直接开练。
+//
+// 这是"练一长段"的主路径 —— 练完一句、听一遍回放、按一下,下一句就开始,
+// 中间不用再去列表里找行。所以它必须自己把上一句的残留收干净:正在播的回放、
+// 循环、上一句的逐词判定,留着任何一个都会在换句之后把人拽回上一句。
+function nextSentence() {
+  const from = shownIndex();
+  if (from < 0) { flash('先选中一句'); return; }
+  if (from + 1 >= M.captions.length) { flash('已经是最后一句了'); return; }
+
+  // 正在录的这一段不能被跳走:这个按钮是"下一句",不是"放弃这句录音"。
+  // playing 也算 —— 录音跟读此时正在放原声,跳过去等于凭空截断。
+  if (micState === 'recording' || micState === 'playing'
+      || micState === 'scoring'
+      || shadowState === 'recording' || shadowState === 'decoding') {
+    flash('这一句还没结束,等它录完再跳'); return;
+  }
+
+  if (shadowState === 'playing') finishShadowPlay();
+  if (takeEl || abMode) stopListen();
+  if (loop) stopLoop();
+  clearVerdicts();
+  scored.hidden = true;
+
+  // 只定位不播放 —— 真正要播的是下面那个模式自己的流程(录音跟读会先放原声,
+  // 影子跟读会先开麦)。在这里顺手 A.play() 会和它们抢播放头。
+  seekOrig(M.captions[from + 1].start + 0.01);
+
+  if (practiceMode === 'shadow') shadowStart();
+  else if (practiceMode === 'mic') micStart();
 }
 
 async function shadowRunOriginal(sp) {
@@ -1800,6 +1853,11 @@ function bind() {
     // decoding:还在解码,再点没有意义,等它自己进 playing
   };
 
+  document.getElementById('nextBtn').onclick = () => {
+    ensureRunning();
+    nextSentence();
+  };
+
   document.getElementById('shadowReplay').onclick = () => {
     ensureRunning();
     if (shadowState === 'playing') finishShadowPlay();
@@ -1819,7 +1877,7 @@ function bind() {
   window.addEventListener('mouseup', () => drag = false);
   T.addEventListener('touchstart', e => seek(e.touches[0]), { passive: true });
 
-  // keyboard: space play/pause, L loop, R replay, V record, S shadow
+  // keyboard: space play/pause, L loop, R replay, V record, S shadow, N next
   window.addEventListener('keydown', e => {
     // 打字时不要抢键。视频网址里几乎每一个都含 s(v 也一样),不挡的话一边
     // 输入网址一边就开始录音/跟读。这条对所有快捷键都成立,包括空格。
@@ -1831,6 +1889,7 @@ function bind() {
     if (e.key === 'r' || e.key === 'R') document.getElementById('rep').click();
     if (e.key === 'v' || e.key === 'V') micBtn.click();
     if (e.key === 's' || e.key === 'S') shadowBtn.click();
+    if (e.key === 'n' || e.key === 'N') nextSentence();
   });
 }
 

@@ -177,7 +177,14 @@ def main() -> int:
 
             page.click(f"#list .row:nth-child({TARGET + 1})")
             page.wait_for_timeout(300)
-            print(f"sentence      : {TARGET} ({need:.2f}s of speech)")
+            # 选中只是选中。这里以前会自动 play(),于是"跳到第 12 句看一眼"等于
+            # "从头放一遍",而想听的人本来就有 ▶ 和 ↻ 重听本句。
+            # 判据取播放按钮的文案:它在 play/pause 事件里翻转,是页面自己承认的
+            # 播放状态,不是我从 DOM 猜的。
+            select_paused = "暂停" not in page.evaluate(
+                "() => document.getElementById('play').textContent")
+            print(f"sentence      : {TARGET} ({need:.2f}s of speech)  "
+                  f"点行后 paused={select_paused}")
 
             page.click("#shadowBtn")
             try:
@@ -211,6 +218,9 @@ def main() -> int:
             d_ms = clock["tPlay"] - clock["tRec"]
             print(f"mic vs play   : mic opened {d_ms:.0f}ms before the original")
             ok = True
+            if not select_paused:
+                print("\nFAIL: 点一条字幕就自动播放了 — 选中只该定位,不该开播")
+                ok = False
             if d_ms <= 0:
                 print("\nFAIL: the original started BEFORE the microphone — the "
                       "head of every sentence would be cut off")
@@ -397,6 +407,26 @@ def main() -> int:
                 print("\nFAIL: 左右耳重听 did not start audible playback")
                 ok = False
             page.click("#shadowBtn")
+            page.wait_for_timeout(300)
+
+            # ---- 下一句 must continue the mode, not just move on --------
+            # 练一长段时不该每句都回列表里找行:上一句是影子跟读练的,按一下
+            # 下一句就该直接在下一句开录。这里断言的是"模式被延续",不是
+            # "位置变了" —— 只换位置的那种实现照样能让指示器前进。
+            # 上一步已经把回放停掉、状态回到 idle,但"练的是影子跟读"这件事
+            # 还该记得,这正是它和录制状态分开记的理由。
+            nxt = page.evaluate("() => window.__shadow.index()") + 1
+            page.click("#nextBtn")
+            try:
+                page.wait_for_function(
+                    f"() => window.__shadow.state() === 'recording' "
+                    f"&& window.__shadow.index() === {nxt}", timeout=15000)
+                print(f"next sentence : 继续影子跟读,第 {nxt} 句开始录音")
+            except Exception:
+                print(f"\nFAIL: 下一句没有续上影子跟读(期望第 {nxt} 句开录,"
+                      f"实际 {page.evaluate('() => [window.__shadow.state(), window.__shadow.index()]')})")
+                ok = False
+            page.click("#shadowBtn")     # 收掉这次录音,别让它去解码回放
             page.wait_for_timeout(300)
 
             # ---- the message must not have been queued for scoring ------
