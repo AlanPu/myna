@@ -326,21 +326,35 @@ def main() -> int:
             # 判据不能看峰值:take 里只装着句子的某一段,峰值和整句无关(实测
             # 放过一次,右耳峰值反而是左耳的 1.6 倍,而 RMS 已经对齐)。要对齐
             # 的是"语音电平"本身,所以直接问:放大之后,两侧的语音 RMS 相等吗。
+            #
+            # 口径:页面在解码时就把增益和软限幅烘进了 buffer,所以 levels()['take']
+            # 已经是右耳真正听到的电平,不能再乘一次 gain。
+            #
+            # 峰值单独立一条断言,因为它证的是另一件事:放大到一般响之后没有削波。
+            # 旧实现反过来 —— 用 0.98/peak 压住增益,峰值永远合规,代价是右耳
+            # 永远差 2-3dB,而且差多少取决于素材的波峰因数。两件事都断言,才不
+            # 会用一个指标买到另一个指标的违规。
             gain = page.evaluate("() => window.__shadow.gain()")
             lvls = page.evaluate("() => window.__shadow.levels()")
+            pk = page.evaluate("() => window.__shadow.peak()")
             gdb = 20 * math.log10(gain) if gain and gain > 0 else -99
-            post = lvls["take"] * (gain or 0)
-            err = 20 * math.log10(post / lvls["orig"]) if lvls["orig"] else -99
-            print(f"take gain     : {gain:.2f}x ({gdb:+.1f}dB)")
+            err = 20 * math.log10(lvls["take"] / lvls["orig"]) if lvls["orig"] else -99
+            print(f"take gain     : {gain:.2f}x ({gdb:+.1f}dB)  "
+                  f"raw {lvls['raw']:.4f} -> {lvls['take']:.4f}")
+            print(f"take peak     : {pk:.3f} (1.0 = 满刻度)")
             print(f"speech rms    : orig {lvls['orig']:.4f}  take {lvls['take']:.4f}"
-                  f"  -> {post:.4f} after gain ({err:+.1f}dB off)")
+                  f"  ({err:+.1f}dB off)")
             if gain is None or gain <= 1.05:
                 print("\nFAIL: a quiet take was not amplified — the right ear "
                       "would stay far below the original")
                 ok = False
             if abs(err) > 1.5:
                 print(f"\nFAIL: after matching, the take is still {abs(err):.1f}dB "
-                      f"off the original — the two statistics are not comparable")
+                      f"off the original — the gain did not survive to playback")
+                ok = False
+            if pk is None or pk > 0.99:
+                print(f"\nFAIL: the matched take peaks at {pk:.3f} — matching the "
+                      f"level by clipping is not matching the level")
                 ok = False
 
             # ---- stopping must restore the normal route -----------------

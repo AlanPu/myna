@@ -1233,6 +1233,8 @@ let shadowPoll = null;
 let shadowTake = null;          // 上一次录音解码出来的 AudioBuffer
 let shadowTakeSrc = null;       // 正在播的那一路
 let shadowTakeGain = 1;         // 上一回实际用的音量倍数,给检查脚本查
+let shadowRawRms = 0;           // 对齐前录音自己的语音电平,只用于日志
+let shadowTakePeak = 0;         // 对齐后录音的峰值,应当始终 < 1(不削波)
 let shadowClock = null;         // {tRec, tPlay},毫秒,performance.now() 时间
 let shadowSpan = null;          // 这次跟的句子在原速时间轴上的 [a, b]
 // 录音时顺手量原声的语音电平。左右耳要对齐音量,得知道"这一条素材有多响",
@@ -1437,7 +1439,18 @@ function shadowFinish() {
 
   setShadowState('decoding');
   shadowDecode(blob).then(buf => {
-    shadowTake = buf;
+    // 音量对齐在这里做,不在 shadowPlay 里。
+    //
+    // 对齐的结果是烘进 buffer 的(见 shadowMatchLevel),而 shadowPlay 会被
+    // 重入:"再听一遍"和 idle 状态下再按一次按钮都会再进一次。把乘法留在
+    // shadowPlay 里,第二次播放就会叠一次增益 —— 越听越响,而且没人会把它
+    // 归因到"重播"这个动作上。
+    const origRms = shadowSpeechRms(shadowOrigLv) || 0.10;
+    const match = shadowMatchLevel(buf, origRms);
+    shadowTake = match.buf;
+    shadowTakeGain = match.gain;
+    shadowRawRms = match.rawRms;
+    shadowTakePeak = match.peak;
     shadowbar.hidden = false;
     shadowPlay();
   }).catch(e => {
@@ -1482,26 +1495,9 @@ function shadowPlay() {
   if (typeof ensureRunning === 'function') ensureRunning();
   A.play().catch(() => {});
 
-  // 音量对齐。
-  //
-  // 原声是做过后期的人声,而这里的录音把 AGC 关掉了 —— 正常距离对着笔记本
-  // 说话,语音 RMS 常常只有原声的六分之一到八分之一。左右耳差 15dB,听起来
-  // 就是"我的声音很小",而那跟发音本身毫无关系。固定乘一个倍数不行:换个
-  // 麦克风就过冲或者仍然偏小。所以两边各量一个语音电平,按比值放大。
-  //
-  // 两个闸门:最多 8×(约 +18dB,再往上就是录音本身有问题了),以及按峰值
-  // 收住不削波 —— 宁可少放大一点,也不要把齿音削成方波。
-  const takeRms = shadowSpeechRms(shadowFrameRms(shadowTake));
-  const origRms = shadowSpeechRms(shadowOrigLv) || 0.10;
-  let gain = 1;
-  if (takeRms > 1e-5) {
-    gain = origRms / takeRms;
-    gain = Math.max(0.5, Math.min(gain, 8));
-    const peak = shadowPeak(shadowTake);
-    if (peak > 1e-4) gain = Math.min(gain, 0.98 / peak);
-  }
-  shadowTakeGain = gain;
-  const gainDb = 20 * Math.log10(gain);
+  // 音量对齐已经在解码时做完并烘进了 buffer(见 shadowFinish / shadowMatchLevel)。
+  // 这里既不能再算一次,也不能再乘一次:本函数在"再听一遍"时会被重入。
+  const gainDb = 20 * Math.log10(shadowTakeGain || 1);
   document.getElementById('shadowHint').textContent =
     `左耳原声 · 右耳你的(${gainDb >= 0 ? '+' : ''}${gainDb.toFixed(1)}dB)` +
     ' · 建议戴耳机';
@@ -1525,8 +1521,9 @@ function shadowPlay() {
 
     const src = ctx.createBufferSource();
     src.buffer = shadowTake;
+    // 增益已经烘进 shadowTake 本身;这个节点只留作后续挂处理的入口,乘 1。
     const trim = ctx.createGain();
-    trim.gain.value = gain;
+    trim.gain.value = 1;
     src.connect(trim);
     const tpan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
     if (tpan) {
@@ -1568,11 +1565,10 @@ function shadowLevel() {
   return { l: rms(m.la), r: rms(m.ra) };
 }
 
-// 一个 buffer 里每 50ms 的 RMS。只取第 0 声道:录音是单声道,而音量对齐
+// 一段 PCM 每 50ms 的 RMS。只取第 0 声道:录音是单声道,而音量对齐
 // 关心的是电平,不是声场。
-function shadowFrameRms(buf) {
-  const d = buf.getChannelData(0);
-  const win = Math.max(1, Math.floor(buf.sampleRate * 0.05));
+function shadowFrameRmsOf(d, rate) {
+  const win = Math.max(1, Math.floor(rate * 0.05));
   const out = [];
   for (let i = 0; i + win <= d.length; i += win) {
     let s = 0;
@@ -1580,6 +1576,9 @@ function shadowFrameRms(buf) {
     out.push(Math.sqrt(s / win));
   }
   return out;
+}
+function shadowFrameRms(buf) {
+  return shadowFrameRmsOf(buf.getChannelData(0), buf.sampleRate);
 }
 
 // "有声部分"的电平:丢掉低于峰值 10% 的帧再求均方根。
@@ -1599,14 +1598,58 @@ function shadowSpeechRms(frames) {
   return n ? Math.sqrt(s / n) : 0;
 }
 
-function shadowPeak(buf) {
-  const d = buf.getChannelData(0);
-  let p = 0;
-  for (let j = 0; j < d.length; j++) {
-    const v = d[j] < 0 ? -d[j] : d[j];
-    if (v > p) p = v;
+// 软限幅:膝盖以下原样通过,以上用 tanh 压向 0.97,永远不会越过满刻度。
+//
+// 为什么不是"按峰值收住增益"。这两件事在旧实现里互相打架:按语音 RMS 算出的
+// 倍数实测是 5.5×(录音 0.0347 -> 原声 0.1902),而 0.98/peak 只允许 4.0×,
+// 于是右耳永远差 2.7dB,差多少取决于这条素材的波峰因数而不是用户的声音。
+// 未做后期的话筒录音波峰因数本来就比压缩过的原声高(实测 15dB vs 11dB),
+// 所以硬天花板几乎总是先生效 —— 这不是偶发,是常态。
+//
+// 膝盖处一阶导连续(tanh 在 0 处斜率为 1),所以过渡点不会有咔哒声。
+const SHADOW_KNEE = 0.72;   // 开始压缩的电平
+const SHADOW_CEIL = 0.97;   // 渐近上限,永远到不了
+function shadowSoftClip(x) {
+  const a = x < 0 ? -x : x;
+  if (a <= SHADOW_KNEE) return x;
+  const over = (a - SHADOW_KNEE) / (SHADOW_CEIL - SHADOW_KNEE);
+  const y = SHADOW_KNEE + (SHADOW_CEIL - SHADOW_KNEE) * Math.tanh(over);
+  return x < 0 ? -y : y;
+}
+
+// 把录音的语音电平抬到原声那一档,并保证峰值不削波。
+//
+// 增益照旧按 RMS 求(上限 8×,再往上就是录音本身有问题),峰值交给软限幅。
+// 限幅会吃掉一点能量,所以按"目标/实测"再修正两轮 —— 让烘进去的结果本身
+// 就等于目标电平,而不是让播放链路上再挂一个会改变结果的补偿。
+//
+// 返回的 buf 已经是成品(增益 + 限幅都烘进去),回放时直接播它。
+function shadowMatchLevel(raw, target) {
+  const rate = raw.sampleRate;
+  const src = raw.getChannelData(0);
+  const out = new Float32Array(src.length);
+  const rawRms = shadowSpeechRms(shadowFrameRmsOf(src, rate));
+  const clamp = g => Math.max(0.5, Math.min(g, 8));
+
+  let gain = rawRms > 1e-5 ? clamp(target / rawRms) : 1;
+  let rms = rawRms;
+  for (let pass = 0; pass < 4; pass++) {
+    for (let i = 0; i < src.length; i++) out[i] = shadowSoftClip(src[i] * gain);
+    rms = shadowSpeechRms(shadowFrameRmsOf(out, rate));
+    if (rms <= 1e-6) break;
+    const fix = target / rms;
+    if (Math.abs(20 * Math.log10(fix)) < 0.05) break;
+    gain = clamp(gain * fix);
   }
-  return p;
+
+  const buf = SHADOW.ctx.createBuffer(1, out.length, rate);
+  buf.getChannelData(0).set(out);
+  let peak = 0;
+  for (let i = 0; i < out.length; i++) {
+    const v = out[i] < 0 ? -out[i] : out[i];
+    if (v > peak) peak = v;
+  }
+  return { buf, gain, rawRms, rms, peak };
 }
 
 // ---------------------------------------------------------------- bind
@@ -1677,8 +1720,14 @@ function bind() {
       // 数 —— 浏览器里没有任何别的地方能看见它们。
       levels: () => ({
         orig: shadowSpeechRms(shadowOrigLv),
+        // 增益和限幅已经烘进 shadowTake,所以这就是右耳真正听到的电平。
+        // 检查脚本不能再乘一次 gain —— 旧版是 raw × gain,改过口径后那条
+        // 乘法会把"已对齐"误判成"还差 12dB"。
         take: shadowTake ? shadowSpeechRms(shadowFrameRms(shadowTake)) : 0,
+        raw: shadowRawRms,
       }),
+      // 对齐后的峰值。它证明的是另一件事:放大到一般响之后没有削波形。
+      peak: () => shadowTakePeak,
       index: () => shadowIndex,
       ctxState: () => (SHADOW.ctx ? SHADOW.ctx.state : null),
       route: () => shadowRoute,
