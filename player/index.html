@@ -109,6 +109,10 @@
   .now{text-align:center;color:#5a6779;font-size:12.5px;padding-bottom:6px;
        font-variant-numeric:tabular-nums}
   .now b{color:var(--accent);font-weight:600}
+  /* 手改斜杠后的"恢复自动"。虚下划线是"可点"的信号,不抢眼。 */
+  .brkreset{color:var(--warn);cursor:pointer;
+            border-bottom:1px dashed rgba(240,180,41,.45)}
+  .brkreset:hover{border-bottom-color:var(--warn)}
   .speedrow{display:flex;align-items:center;gap:10px;margin-top:14px;flex-wrap:wrap}
   .speedrow .lbl{color:var(--dim);font-size:12px;text-transform:uppercase;letter-spacing:.05em}
   .speeds{display:flex;gap:6px}
@@ -641,6 +645,9 @@ function tick(tMedia) {
     // 一个符号两种意思 —— 挨着看分不清哪根是"该停"。改成"共 N 句"。
     nowEl.innerHTML = shown >= 0
       ? `第 <b>${shown + 1}</b> 句 · 共 ${M.captions.length} 句 · <b>${fmt(tOrig)}</b>s`
+        // 手改过的句子要能看出来、也要能改回去。链接放在这一行而不是句子区,
+        // 是因为句子区里每个词都可点,再多一个热区会误触。
+        + (brkOverride(shown) ? ' · <span class="brkreset">斜杠已手改 · 恢复自动</span>' : '')
       : `准备开始 · <b>${fmt(tOrig)}</b>s`;
   }
   if (shown !== cur) {
@@ -881,11 +888,24 @@ function toggleBreak(i, k) {
   if (k < 0 || k >= words.length - 1) return false;
   const set = new Set(breaksFor(i));
   if (set.has(k)) set.delete(k); else set.add(k);
-  const next = [...set].sort((a, b) => a - b);
-  const store = brkMapLoad();
-  store[M.videoId][brkKey(i)] = next;
-  try { localStorage.setItem(BRK_STORE, JSON.stringify(store)); } catch {}
+  storeBreaks(i, [...set].sort((a, b) => a - b));
   return true;
+}
+
+function storeBreaks(i, list) {
+  const store = brkMapLoad();
+  store[M.videoId][brkKey(i)] = list;
+  try { localStorage.setItem(BRK_STORE, JSON.stringify(store)); } catch {}
+}
+
+// 手改之后要能回到自动。没有这个出口,用户误点一下、又把整句的斜杠挨个收
+// 掉之后,那句就永久是空的了 —— 而屏幕上没有任何线索说明为什么,也没有
+// 地方能点回来。
+function clearBreaks(i) {
+  const store = brkMapLoad();
+  delete store[M.videoId][brkKey(i)];
+  try { localStorage.setItem(BRK_STORE, JSON.stringify(store)); } catch {}
+  BREAKS.delete(i);
 }
 
 // 句子显示区的点击:点在哪个词上,就在那个词后面加/去一根斜杠。
@@ -907,6 +927,16 @@ function bindCueClicks() {
     if (i < 0 || !M.captions[i]) return;
     if (toggleBreak(i, k)) tick(A.currentTime);
   });
+  // "恢复自动"在句号那一行,和句子区分开 —— 免得点词的时候误触。
+  const now = document.getElementById('now');
+  if (now && !now.dataset.bkBound) {
+    now.dataset.bkBound = '1';
+    now.addEventListener('click', e => {
+      if (!e.target.closest('.brkreset') || cur < 0) return;
+      clearBreaks(cur);
+      tick(A.currentTime);
+    });
+  }
 }
 
 // 录音态把斜杠提亮。单独成函数是因为 tick() 只在时间前进时跑,而"按下录音"

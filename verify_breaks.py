@@ -290,6 +290,40 @@ def main() -> int:
         if k in undo:
             problems.append(f"再点一次没有收掉第 {k} 个词后的斜杠,断点 {undo}")
 
+        # ---- 3b. 手改之后必须能改回自动 ------------------------------------
+        # 没有这个出口时,把一句的斜杠挨个收掉就等于永久清空它 —— 屏幕上
+        # 也不会说明为什么。所以除了"能点",还要验"能恢复"。
+        reset = p.evaluate("""([i, k]) => {
+            seekOrig(M.captions[i].start + 0.05);
+            const cue = document.getElementById('cue');
+            cue.querySelectorAll('.w')[k].click();       // 再上一根,制造手改态
+            const link = document.querySelector('#now .brkreset');
+            const shown = !!link;
+            const manual = breaksFor(i).slice();
+            if (link) link.click();
+            return {shown, manual, now: breaksFor(i).slice(),
+                    auto: computeBreaks(M.captions[i]),
+                    stored: localStorage.getItem('myna.breaks.v1') || '',
+                    linkAfter: !!document.querySelector('#now .brkreset')};
+        }""", [pick, k])
+        if k not in reset["manual"]:
+            problems.append(f"恢复测试:第 {k} 个词后的斜杠没加上({reset['manual']})")
+        elif not reset["shown"]:
+            problems.append("恢复测试:手改之后没有出现「恢复自动」的入口")
+        elif reset["now"] != reset["auto"]:
+            problems.append(f"恢复测试:点了「恢复自动」没有回到自动结果"
+                            f"({reset['now']} ≠ {reset['auto']})")
+        elif reset["linkAfter"]:
+            problems.append("恢复测试:恢复之后「恢复自动」还在(没清掉手改)")
+        if reset["shown"]:
+            try:
+                store = json.loads(reset["stored"] or "{}")
+            except json.JSONDecodeError:
+                store = {}
+            mine = store.get(man["videoId"], {})
+            if any(k.split(":")[0] == str(pick) for k in mine):
+                problems.append(f"恢复测试:恢复之后 localStorage 里还留着句 {pick}")
+
         # ---- 4. 录音态必须把斜杠提亮 --------------------------------------
         # 分两次读、中间等一等:斜杠颜色有 .12s 过渡,加完类立刻读
         # getComputedStyle 拿到的还是过渡起点的颜色。前面那轮 seekOrig 也会
