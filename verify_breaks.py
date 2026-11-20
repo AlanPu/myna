@@ -8,10 +8,13 @@
      里实测的词间隔 ≥0.70s。第二条在这里用 Python 从同一份 json 重算
      (不调用页面自己的 computeBreaks),所以规则偷偷变松不会蒙过去。
 
-另外两条是渲染不变量:
-  * 把 .brk 去掉、按空白切开,必须原样还原这一句的每个词。斜杠插进来时若吞
-    掉了空格,"you'll be" 会变成 "you'll/be" —— 词表对得上,但人眼看到的是
-    两个词粘在一起。
+另外三条是渲染不变量:
+  * 把斜杠 token 去掉、按空白切开,必须原样还原这一句的每个词。斜杠插进来时
+    若吞掉了空格,"you'll be" 会变成 "you'll/be" —— 词表对得上,但人眼看到
+    的是两个词粘在一起。
+  * 斜杠必须落在**规则选中的那个词之后**。只比根数是不够的:整屏斜杠齐齐晚
+    一个词的版本,根数完全一致 —— 第一版就是这么错出去的,这条断言就是为它
+    写的。
   * 录音态(.cue.live)斜杠颜色必须和平时不同:用户只在录音跟读时盯这一行,
     平时那根线压得很暗,不提亮就等于没标。
 
@@ -33,13 +36,16 @@ GAP = 0.70                     # 与页面 BREAK_GAP 一致,单位秒
 PUNCT = ",;:—–"
 SAMPLE = 12                    # 逐句核对渲染的句数
 
-# 规则里写死的过滤条件,这里当作不变量复核
+# 规则里写死的过滤条件,这里当作不变量复核。这份名单是有意抄一遍的:
+# 检查就该用"我以为的规则"去judge页面,共用一份常量的话,规则改松了
+# 检查也跟着松,等于没查。
 LEAD_STOP = set("the a an of to in on at for with from by as and but or that "
                 "which who is are was were be been am my your his her its our "
-                "their this these those".split())
+                "their this these those me him us them".split())
 TRAIL_STOP = set("the a an of to in on at for with from by as is are was were "
-                 "be been am my your his her its our their this these "
-                 "those".split())
+                 "be been am do does did can could will would shall should may "
+                 "might must have has had that this these those my your his her "
+                 "its our their".split())
 
 
 def bare(w: str) -> str:
@@ -47,16 +53,20 @@ def bare(w: str) -> str:
 
 
 def justified(seg) -> dict[int, str]:
-    """这一句里**有资格**成为换气点的位置,不套过滤条件。"""
+    """这一句里**有资格**成为换气点的位置,不套过滤条件。
+
+    键是 j = 停顿前最后一个词的下标(0 起),和页面 BREAKS 的约定一致 ——
+    "在第 j 个词之后插一根斜杠"。
+    """
     words = seg["text"].split()
     marks = seg.get("word_marks") or []
     out: dict[int, str] = {}
-    for k in range(1, len(words)):
-        prev = words[k - 1].rstrip("\"'”’)]")
+    for j in range(0, len(words) - 1):
+        prev = words[j].rstrip("\"'”’)]")
         if prev and prev[-1] in PUNCT:
-            out[k] = "punct"
-        elif len(marks) == len(words) and marks[k] - marks[k - 1] >= GAP - 1e-9:
-            out[k] = "gap"
+            out[j] = "punct"
+        elif len(marks) == len(words) and marks[j + 1] - marks[j] >= GAP - 1e-9:
+            out[j] = "gap"
     return out
 
 
@@ -97,48 +107,50 @@ def main() -> int:
                 with_break += 1
             total_break += len(bs)
             ok = justified(caps[i]) if i < len(caps) else {}
-            for k in bs:
-                if k not in ok:
+            for j in bs:
+                if j not in ok:
                     problems.append(
-                        f"句 {i}: 词 {k} 之后的斜杠没有依据(既无标点,"
+                        f"句 {i}: 词 {j} 之后的斜杠没有依据(既无标点,"
                         f"实测间隔也不到 {GAP}s)")
                     continue
-                kinds[ok[k]] += 1
-                edge = 1 if ok[k] == "punct" else 2
-                if k < edge or len(words) - k < edge:
-                    problems.append(f"句 {i}: 斜杠贴边(词 {k}/{len(words)})")
-                if ok[k] == "gap":
-                    if bare(words[k]) in LEAD_STOP:
+                kinds[ok[j]] += 1
+                need = 1 if ok[j] == "punct" else 2
+                before, after = j + 1, len(words) - 1 - j
+                if before < need or after < need:
+                    problems.append(f"句 {i}: 斜杠贴边(词 {j}/{len(words)}")
+                if ok[j] == "gap":
+                    if bare(words[j + 1]) in LEAD_STOP:
                         problems.append(f"句 {i}: 断在功能词前 "
-                                        f"'{words[k]}'")
-                    if bare(words[k - 1]) in TRAIL_STOP:
+                                        f"'{words[j + 1]}'")
+                    if bare(words[j]) in TRAIL_STOP:
                         problems.append(f"句 {i}: 紧跟在功能词后 "
-                                        f"'{words[k - 1]}'")
+                                        f"'{words[j]}'")
             for a, c in zip(bs, bs[1:]):
-                if c - a < 2:
+                # 标点之间隔 1 个词是允许的;有一头是间隔推出来的则要 3 个词
+                near = 2 if (ok.get(a) == "punct" and ok.get(c) == "punct") else 3
+                if c - a < near:
                     problems.append(f"句 {i}: 两个斜杠只隔 {c - a} 个词")
-            gaps = sum(1 for k in bs if ok.get(k) == "gap")
+            gaps = sum(1 for j in bs if ok.get(j) == "gap")
             if gaps > 2:
                 problems.append(f"句 {i}: 靠间隔推出来的斜杠有 {gaps} 处(上限 2)")
             if bs and len(examples) < 6:
                 line = ""
                 for k, w in enumerate(words):
-                    line += (" / " if k in bs else " ") + w
+                    line += w + (" /" if k in bs else "") + " "
                 examples.append((i, line.strip()))
 
-        # ---- 2. 渲染:斜杠插进去不能改变词表 ------------------------------
+        # ---- 2. 渲染:斜杠插进去不能改变词表,也不能插错位置 ---------------
         idx = [round(i * (n_sent - 1) / (SAMPLE - 1)) for i in range(SAMPLE)]
         rendered = p.evaluate("""(idx) => idx.map(i => {
             seekOrig(M.captions[i].start + 0.05);
             const cue = document.getElementById('cue');
-            return {i, text: cue.textContent,
-                    brk: cue.querySelectorAll('.brk').length,
-                    expect: breaksFor(i).length};
+            return {i, text: cue.textContent, expect: breaksFor(i)};
         })""", idx)
         for r in rendered:
             i = r["i"]
             want = caps[i]["text"].split()
-            got = [t for t in r["text"].split() if t != "/"]
+            toks = r["text"].split()
+            got = [t for t in toks if t != "/"]
             if got != want:
                 # 只报第一处差异,够定位
                 k = next((j for j in range(min(len(got), len(want)))
@@ -147,9 +159,19 @@ def main() -> int:
                     f"句 {i}: 去掉斜杠后词表不一致(第 {k} 个词:"
                     f"{got[k] if k < len(got) else '缺'} "
                     f"≠ {want[k] if k < len(want) else '多'})")
-            if r["brk"] != r["expect"]:
-                problems.append(f"句 {i}: 画出来 {r['brk']} 根斜杠,"
-                                f"断点却是 {r['expect']} 处")
+            # 斜杠落在"第几个词之后":屏幕上数出来的位置必须等于 BREAKS。
+            # 只比根数是不够的 —— 位置整体偏一个词时根数完全一致,而那正是
+            # 第一版犯的错(整屏斜杠齐齐晚一个词)。
+            seen = 0
+            drawn = []
+            for t in toks:
+                if t == "/":
+                    drawn.append(seen - 1)
+                else:
+                    seen += 1
+            if drawn != list(r["expect"]):
+                problems.append(f"句 {i}: 斜杠画在位置 {drawn},"
+                                f"断点是 {list(r['expect'])}")
 
         # ---- 3. 录音态必须把斜杠提亮 --------------------------------------
         # 分两次读、中间等一等:斜杠颜色有 .12s 过渡,加完类立刻读
@@ -224,7 +246,7 @@ def main() -> int:
     print("-" * 66)
     if colors:
         print(f"斜杠颜色 平时 {colors['base']}  录音 {colors['live']}")
-    print(f"抽查渲染 {len(rendered)} 句,词表逐句比对")
+    print(f"抽查渲染 {len(rendered)} 句:词表逐句比对,斜杠位置逐根比对")
 
     if problems:
         print(f"\nFAILED — {len(problems)} 处")
