@@ -86,6 +86,29 @@ export https_proxy=http://127.0.0.1:7890        # 需要代理时
 前提是**戴耳机**。外放时麦克风会录到原声,右耳成了"你的声音 + 漏进来的原声"。
 因为不打分,这不影响正确性,但听着会糊。
 
+## 换气斜杠
+
+句子显示区里会插 `/`,标"这里该停一下"。位置来自**波形**,不是字幕标点:
+
+`wordmarks.pauses()` 在 RMS 包络上找"掉到当地音量 1/3 以下、持续 ≥0.15s"的段,
+写进 `energy.json` 的 `pauses:[起, 止, 锚词下标]`。锚词(这处停顿挂在哪一个词
+后面)用逐词时间定,不用 `word_marks` —— 后者是"词亮起来"的时刻,快句子上会整体
+后移,全片 767 处停顿里只有 16% 能锚对。
+
+短停顿(0.15–0.25s)如果正好落在 `with` / `and` 这类功能词前面,判为塞音除阻而不是
+换气;0.25s 以上的停顿即使后面跟 `that` 也照标。一句话最多 4 根。
+
+**点任何一个词可以微调**:点一下在它后面加一根,再点收掉,存在 localStorage 里
+(键里带首尾词和词数的签名,重新抓字幕就作废)。
+
+锚词要准,需要一份逐词时间做 sidecar。它是可选的,缺了也能出片(锚点退回
+`word_marks`,可能差一两个词):
+
+```bash
+.venv/bin/pip install faster-whisper     # 一次,约 74MB 模型
+.venv/bin/python align_words.py          # → audio2/words_<videoId>.json
+```
+
 ## 流程
 
 ```
@@ -95,8 +118,9 @@ rebuild.py
   3 切片
   4 渲染 4 档变速(atempo,保音高)
   5 实测每句语音边界 + 逐词标记      onsets.py wordmarks.py
+    └ 可选:align_words.py 先产出逐词时间,换气斜杠才挂得准
   6 写清单
-  7 跑七项验证                      check.py
+  7 跑八项验证                      check.py
 ```
 
 `serve.py` 提供静态文件,以及 `POST /api/build`(浏览器触发生成)、
@@ -116,6 +140,7 @@ rebuild.py
 |---|---|
 | `verify_switch.py` | 每句的最后一个词在被替换前必须点亮 |
 | `verify_visual.py` | 每个标记之后 250ms 内必须有真实语音 |
+| `verify_breaks.py` | 每根换气斜杠都落在一处实测停顿上,锚词与逐词时间一致 |
 
 打分的验证换了另一条路子:**往原声里注入缺陷,看分数掉不掉。** 这是波形层面的判据,不是自洽。
 
@@ -200,7 +225,11 @@ rebuild.py
 
 Python 3.12、`ffmpeg`、`yt-dlp`、`youtube-transcript-api`,浏览器检查需要 Playwright。慢速渲染不需要 `rubberband`。
 
+faster-whisper 是**可选**的,只给 `align_words.py` 用(产出换气斜杠的锚词)。没装也能完整出片。
+
 `.venv/`、`audio2/`、`player/*.m4a` 和变速产物不入库——都由 `rebuild.py` 生成。
+`audio2/words_<videoId>.json` 也在其中:它由 `align_words.py` 产出,描述同一个
+视频的逐词时间。
 
 `player/player_captions.json` 和 `player/energy.json` 同样不入库。它们**只描述当前构建的那一个视频**,每次重建原地覆盖,所以是本地状态快照而不是可依赖的输入:没有一个克隆能保证持有「上一位贡献者碰巧构建的那个视频」。入库的代价是换视频时各重写约 2000 行,把一个无关的一行修复的 diff 淹掉。
 

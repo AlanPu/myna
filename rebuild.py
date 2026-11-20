@@ -215,7 +215,12 @@ def main() -> int:
     # Word-level timing must come from the detected syllable peaks, otherwise
     # the highlight drifts: measured against the waveform, evenly spread words
     # lagged the voice by 0.46s on average.
-    wordmarks.build(native, caps, "player/energy.json", start=0.0)
+    #
+    # load_spans 读的是可选的逐词时间(audio2/words_<vid>.json,由
+    # align_words.py 产生)。它只用来把"换气斜杠"挂到正确的词上 —— 字幕高亮
+    # 不需要它,所以缺了build 照跑,只是锚点会退回到 word_marks。
+    wordmarks.build(native, caps, "player/energy.json", start=0.0,
+                    spans=wordmarks.load_spans(vid))
 
     # 6. manifest
     print("[6/7] writing player manifest")

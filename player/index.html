@@ -31,8 +31,11 @@
      text nodes between word spans and renders "reallyreallylongtrunks". */
   .cue .w{color:#c3ccdb;transition:color .12s}
   .cue .w.on{color:#fff;text-shadow:0 0 14px rgba(94,234,212,.55)}
-  /* 换气点。斜杠的位置来自字幕标点 + 实测的词间长间隔(见 computeBreaks),
-     不是一个手感阈值。平时压得很暗(它只是提示,不该抢字的注意力),
+  /* 点词微调斜杠 —— 提示一下可点,不然没人会去点 */
+  .cue .w{cursor:pointer}
+  .cue .w:hover{color:#e6edf7}
+  /* 换气点。斜杠的位置来自波形实测的停顿(见 computeBreaks),不是词间隔
+     也不是标点。平时压得很暗(它只是提示,不该抢字的注意力),
      录音跟读时提亮 —— 那时用户正盯着这一行找节奏。 */
   .cue .brk{color:#5f6d82;font-weight:400;font-size:.92em;padding:0 .06em;
             transition:color .12s;user-select:none}
@@ -243,7 +246,7 @@
     <div class="legend">
       <span class="chip">字幕窗口</span><span class="chip g">静默间隙 &gt;0.4s</span>
       <span class="chip">播放游标</span>
-      <span class="chip">斜杠 / = 换气点(标点或实测停顿)</span>
+      <span class="chip">斜杠 / = 实测停顿(点词可微调)</span>
     </div>
   </div>
 
@@ -420,6 +423,8 @@ fetch('player_captions.json')
             dst.speech_end = src.speech_end;
             dst.word_marks = src.word_marks;
             dst.word_energy = src.word_energy;
+            // 换气点:[起, 止, 锚词下标],见 wordmarks.pauses / anchor_pauses
+            dst.pauses = src.pauses;
             dst.speech = src.speech;
           });
           M.energy_measured = true;
@@ -427,6 +432,7 @@ fetch('player_captions.json')
         // prefill with the clip in play, so the default is "keep this one"
         if (!vurl.value && M.videoId) vurl.placeholder = M.videoId + '  (当前)';
         build();
+        bindCueClicks();
       });
   });
 
@@ -655,7 +661,7 @@ function tick(tMedia) {
     : (micIndex >= 0 ? micIndex
        : (VERDICT && VERDICT.index >= 0 ? VERDICT.index : i));
   const show = shown2;
-  if (show < 0) { cue.textContent = ''; return; }
+  if (show < 0) { cue.dataset.i = -1; cue.textContent = ''; return; }
   const seg = M.captions[show];
   const words = seg.text.split(/\s+/).filter(Boolean);
   const lit = countLit(seg, words.length, tOrig);
@@ -665,6 +671,9 @@ function tick(tMedia) {
   const vw = (VERDICT && VERDICT.index === show)
     ? (VERDICT.per_word || VERDICT) : null;
   const bk = new Set(breaksFor(show));
+  // 点击微调要用"屏幕上是哪一句"。tick 里那句式子有循环/录音/评分三种钉法,
+  // 与其让点击处理重算一遍,不如在这里记下来。
+  cue.dataset.i = show;
   syncCueLive();
   cue.innerHTML = words.map((w, k) => {
     const v = vw && vw[k];
@@ -758,81 +767,146 @@ function countLit(seg, n, tOrig) {
 // ------------------------------------------------------------- phrase breaks
 // 换气点:句子显示区里的斜杠,标「这里该停一下」。
 //
-// 两个来源,都不是"按词数平均切":
-//   1) 字幕里的逗号/分号/冒号/破折号 —— 转录时说话人自己的断句;
-//   2) word_marks 里相邻两个词的起唱间隔 ≥0.70s —— 他真的停下来了。
-//      这份 word_marks 是 wordmarks.py 从音节核标出来的,和打高亮用的是同
-//      一份测量,所以"斜杠的地方"和"高亮卡住的地方"天然是同一处。
+// 位置来自**波形**,不再来自字幕标点或词间间隔。
 //
-// 间隔那条要过三道过滤,不然会断出 "the / story" 这种短语中间的斜杠:
-//   斜杠两侧各至少 2 个词("And / I do this" 就是这么错出来的);
-//   不跨在功能词上("a / personality trait" 是前一个词没说完,不是换气);
-//   一句最多 2 处,且离别的斜杠至少 3 个词(标点已经标过的地方不补第二根)。
-// 标点断句不受这几条限制 —— "So, / let's …" 贴着句子开头是正常的。
+// 上一版用的是"word_marks 相邻两个词的起唱间隔 ≥0.70s"。当时的理由是
+// 它和打高亮共用一份测量,两处不会打架。这个理由是错的:
+//   1) word_marks 是"词亮起来"的时刻,不是"这个词说到哪儿"。快句子上它
+//      会整体后移 —— 第 4 句里 exactly 实际 21.72 就说完,标记却给了
+//      22.50,于是它后面那处 0.20s 的停顿在间隔上完全看不出来,整句 19 个
+//      词只标出一根斜杠。全片实测:用 word_marks 找锚点,只有 16% 和真
+//      词界一致,37% 错两个词以上。
+//   2) 间隔大也不等于换了气,反过来一样:两词贴得近也可能中间真的停了。
 //
-// 位置一律记成 **j = 停顿前最后一个词的下标**(从 0 数),因为渲染那边就是
-// "在第 k 个词之后插一根斜杠"。第一版按"停顿后第一个词"记,于是满屏斜杠
-// 齐齐晚一个词:"So, / let's" 显示成了 "So, let's /"。
-const BREAK_GAP = 0.70;              // 秒。实测词间隔中位数约 0.32
-const BRK_PUNCT = /[,;:—–]$/;
-// 停顿不会落在这类词**前面**:它们必须和后面的词连读。
-// 代词宾语也在里面 —— "will tell / me" 断在 me 前面,读起来是断在动宾之间。
+// 现在改由 wordmarks.pauses() 在能量包络上找"掉到当地音量 1/3 以下、
+// 持续 ≥0.15s"的段,锚词则由逐词时间(可选 sidecar)定,一起写进
+// energy.json 的 pauses:[起, 止, 锚词下标]。页面只负责画。
+//
+// 留一道时长门闸配合功能词过滤:短促的停顿(0.15~0.25s)如果正好落在
+// "with / intention" 这种功能词前面,多半是塞音除阻,不是换气;而 0.25s
+// 以上的停顿即使后面跟 "that" 也是真的停了("Wow, / that resonates")。
+const BREAK_MIN = 0.15;      // 秒。短于这个是塞音除阻
+const BREAK_SOFT = 0.25;     // 秒。短于此值时才用功能词过滤
+const BREAK_MAX = 4;         // 一句最多几根,再密就成了逐词断句
+const BREAK_SPACING = 2;     // 两根斜杠之间至少隔几个词
+const BREAK_EDGE = 2;        // 斜杠两侧各至少几个词
+// 边距这条是给短句的。"That's / storytelling." 里那处停顿是真的,但两词一
+// 行中间插一根斜杠等于把句子劈成两半,看着像少了一个词;四个词以内的句子
+// 本来就一口气读完,不需要提示。
+//
+// 唯一的例外是句首的话语标记:"So, / let's get into…"、"Speak, / people go…"
+// —— 这里左边只有一个词,但那个词带标点、本身就是一口气的边界,不标反而
+// 少了最该标的地方。
+const BRK_TAIL = /[,;:—–]["'”’)\]]*$/;
+// 停顿不会落在这类词**前面**:短促停顿加上它们,基本都不是换气。
 const LEAD_STOP = new Set(('the a an of to in on at for with from by as ' +
   'and but or that which who is are was were be been am ' +
   'my your his her its our their this these those me him us them').split(' '));
-// 也不会紧跟在它们**后面**。助动词和指示词最会骗人:word_marks 是按时间
-// 分片取片内最强峰标出来的,偶尔把后一个词标晚,"that / time"、"did / I"
-// 这种短语中间的间隔就是这么来的 —— 它不是停顿。
-const TRAIL_STOP = new Set(('the a an of to in on at for with from by as ' +
-  'is are was were be been am do does did can could will would shall ' +
-  'should may might must have has had that this these those ' +
-  'my your his her its our their').split(' '));
-
-let BREAKS = null;    // BREAKS[i] = [j, …] 在这些词之后加斜杠
 
 const bareWord = w => w.toLowerCase().replace(/^[^a-z']+|[^a-z']+$/g, '');
 
 function computeBreaks(seg) {
   const words = seg.text.split(/\s+/).filter(Boolean);
   const n = words.length;
-  const marks = seg.word_marks;
   const cand = [];
-  for (let j = 0; j < n - 1; j++) {
-    // A closing quote or bracket belongs to the punctuation, not the word:
-    // "facts," and facts," must be judged the same way.
-    const prev = words[j].replace(/["'”’)\]]+$/, '');
-    if (BRK_PUNCT.test(prev)) cand.push({ j, score: Infinity, punct: true });
-    else if (marks && marks.length === n) {
-      const gap = marks[j + 1] - marks[j];
-      if (gap >= BREAK_GAP) cand.push({ j, score: gap, punct: false });
-    }
+  for (const p of (seg.pauses || [])) {
+    const [t0, t1, j] = p;
+    const dur = t1 - t0;
+    if (!(dur >= BREAK_MIN)) continue;
+    if (!Number.isInteger(j) || j < 0 || j >= n - 1) continue;
+    // 两侧各留 BREAK_EDGE 个词。斜杠贴在句尾会和下一个句号挤在一起,而特别
+    // 短的句子里任何一根斜杠都只是把句子劈成两半。左边不够两个词时,只有
+    // 带标点的句首话语标记可以破例。
+    if (j + 1 < BREAK_EDGE && !BRK_TAIL.test(words[j])) continue;
+    if (n - 1 - j < BREAK_EDGE) continue;
+    if (dur < BREAK_SOFT && LEAD_STOP.has(bareWord(words[j + 1]))) continue;
+    cand.push({ j, dur });
   }
-  // 间隔大的先占位,所以一句里只能留两处时留下的是最长的两次停顿
-  cand.sort((a, b) => b.score - a.score);
+  // 长的先占位:一句里只能留 BREAK_MAX 根时,留下的是停得最久的几处。
+  cand.sort((a, b) => b.dur - a.dur);
   const take = [];
-  let gapBreaks = 0;
   for (const c of cand) {
-    const before = c.j + 1, after = n - 1 - c.j;
-    const need = c.punct ? 1 : 2;
-    if (before < need || after < need) continue;
-    // 标点已经把这个逗号标出来了,旁边再补一根由间隔推出来的斜杠,屏幕上
-    // 就是 "right / now, you / don't" 这种双标记。间隔那根让位,而且让得
-    // 比标点之间更远(3 个词)。
-    if (take.some(t => Math.abs(t - c.j) < (c.punct ? 2 : 3))) continue;
-    if (!c.punct) {
-      if (gapBreaks >= 2) continue;
-      if (LEAD_STOP.has(bareWord(words[c.j + 1]))) continue;
-      if (TRAIL_STOP.has(bareWord(words[c.j]))) continue;
-      gapBreaks++;
-    }
+    if (take.some(t => Math.abs(t - c.j) < BREAK_SPACING)) continue;
     take.push(c.j);
+    if (take.length >= BREAK_MAX) break;
   }
+  // 最长的先占位,所以 take 是"按重要度"排的;输出要按词序。
   return take.sort((a, b) => a - b);
 }
 
+// 用户点出来的斜杠覆盖自动结果。
+//
+// 存 localStorage 而不是回写 energy.json:energy.json 是 rebuild.py 的产物,
+// 每换一个视频整份重写,写进去的微调会连带消失。键里带一个由首尾词和词数
+// 组成的签名 —— 字幕一改(重新抓取、重新断句),旧微调就失效,而不是把
+// 斜杠挪到别的词上。
+const BRK_STORE = 'myna.breaks.v1';
+let USER_BRK = null;
+
+const brkSig = words => words.length + '|' + bareWord(words[0]) + '|' +
+  bareWord(words[words.length - 1]);
+const brkKey = i => i + ':' + brkSig(M.captions[i].text.split(/\s+/).filter(Boolean));
+
+function brkMapLoad() {
+  if (USER_BRK) return USER_BRK;
+  try { USER_BRK = JSON.parse(localStorage.getItem(BRK_STORE) || '{}') || {}; }
+  catch { USER_BRK = {}; }
+  if (!USER_BRK[M.videoId]) USER_BRK[M.videoId] = {};
+  return USER_BRK;
+}
+
+function brkOverride(i) {
+  const v = brkMapLoad()[M.videoId][brkKey(i)];
+  return Array.isArray(v) ? v : null;
+}
+
+// BREAKS[i] 第一次用到才算。懒算不是性能考虑:computeBreaks 会读 seg.pauses,
+// 而换视频后 M.captions 整份换掉,一开场就烤 258 句会烤到旧数据上。
+const BREAKS = new Map();
+let BREAKS_FOR = null;        // BREAKS 属于哪个视频,换了就清空
+
 function breaksFor(i) {
-  if (!BREAKS) BREAKS = M.captions.map(computeBreaks);
-  return BREAKS[i] || [];
+  if (BREAKS_FOR !== M.videoId) { BREAKS.clear(); BREAKS_FOR = M.videoId; }
+  const o = brkOverride(i);
+  if (o) return o;
+  if (!BREAKS.has(i)) BREAKS.set(i, computeBreaks(M.captions[i]));
+  return BREAKS.get(i);
+}
+
+// 点某个词 = 在它后面放一根斜杠;那儿已经有一根就收掉。
+// 一旦点过,这一句就以用户的版图为准,自动结果不再参与 —— 否则"收掉"
+// 一根自动斜杠之后重算又会把它算回来。
+function toggleBreak(i, k) {
+  const words = M.captions[i].text.split(/\s+/).filter(Boolean);
+  if (k < 0 || k >= words.length - 1) return false;
+  const set = new Set(breaksFor(i));
+  if (set.has(k)) set.delete(k); else set.add(k);
+  const next = [...set].sort((a, b) => a - b);
+  const store = brkMapLoad();
+  store[M.videoId][brkKey(i)] = next;
+  try { localStorage.setItem(BRK_STORE, JSON.stringify(store)); } catch {}
+  return true;
+}
+
+// 句子显示区的点击:点在哪个词上,就在那个词后面加/去一根斜杠。
+// 用事件代理而不是给每个 span 挂监听 —— tick() 每次前进都重写 innerHTML,
+// 逐元素挂的监听会跟着丢。
+function bindCueClicks() {
+  const cue = document.getElementById('cue');
+  if (!cue || cue.dataset.brkBound) return;
+  cue.dataset.brkBound = '1';
+  cue.addEventListener('click', e => {
+    const el = e.target.closest('.w');
+    if (!el || !el.parentElement) return;
+    const spans = [...cue.querySelectorAll('.w')];
+    const k = spans.indexOf(el);
+    if (k < 0) return;
+    // 屏幕上显示的是哪一句,就用哪一句 —— 循环/录音/评分都会把这句钉住,
+    // 和 tick() 里那些 shown 用的是同一条推断。
+    const i = cue.dataset.i === undefined ? cur : +cue.dataset.i;
+    if (i < 0 || !M.captions[i]) return;
+    if (toggleBreak(i, k)) tick(A.currentTime);
+  });
 }
 
 // 录音态把斜杠提亮。单独成函数是因为 tick() 只在时间前进时跑,而"按下录音"

@@ -19,6 +19,10 @@ What each check proves
                   span, and sampled playback points where the highlight is
                   moving while the speaker is talking.
   verify_slow     the whole shadowing loop still works at 1x/0.75x/0.6x/0.5x.
+  verify_breaks   every 换气斜杠 sits on a measured pause, is anchored to the
+                  word the pause actually follows (recomputed independently from
+                  the per-word sidecar), renders after that word, and can be
+                  added/removed by clicking a word and survives a reload.
   verify_score    the shadowing metric separates a correct reading from injected
                   defects: rushing, dragging, a dropped phrase, a noisy room,
                   a late start, and capture latency that must NOT be charged to
