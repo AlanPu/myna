@@ -62,6 +62,7 @@ CHECKS = [
     ("switch", "verify_switch.py", True),
     ("visual", "verify_visual.py", False),
     ("sync", "verify_sync.py", True),
+    ("breaks", "verify_breaks.py", True),
     ("slow", "verify_slow.py", True),
     ("score", "verify_score.py", False),
     ("e2e-score", "verify_e2e_score.py", False),

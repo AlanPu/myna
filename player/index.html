@@ -31,6 +31,12 @@
      text nodes between word spans and renders "reallyreallylongtrunks". */
   .cue .w{color:#c3ccdb;transition:color .12s}
   .cue .w.on{color:#fff;text-shadow:0 0 14px rgba(94,234,212,.55)}
+  /* 换气点。斜杠的位置来自字幕标点 + 实测的词间长间隔(见 computeBreaks),
+     不是一个手感阈值。平时压得很暗(它只是提示,不该抢字的注意力),
+     录音跟读时提亮 —— 那时用户正盯着这一行找节奏。 */
+  .cue .brk{color:#5f6d82;font-weight:400;font-size:.92em;padding:0 .16em;
+            transition:color .12s;user-select:none}
+  .cue.live .brk{color:#63c0b4}
   .controls{display:flex;align-items:center;gap:12px;flex-wrap:wrap}
   button{background:var(--accent);color:#05221e;border:0;border-radius:9px;
          padding:9px 17px;font-size:14px;font-weight:650;cursor:pointer}
@@ -237,6 +243,7 @@
     <div class="legend">
       <span class="chip">字幕窗口</span><span class="chip g">静默间隙 &gt;0.4s</span>
       <span class="chip">播放游标</span>
+      <span class="chip">斜杠 / = 换气点(标点或实测停顿)</span>
     </div>
   </div>
 
@@ -624,8 +631,10 @@ function tick(tMedia) {
   const shown = loop && loopIndex >= 0 ? loopIndex
     : (pinned >= 0 ? pinned : i);
   if (nowEl) {
+    // 计数器里原来也有一根斜杠("第 8 / 258 句"),和句子里的换气斜杠撞了
+    // 一个符号两种意思 —— 挨着看分不清哪根是"该停"。改成"共 N 句"。
     nowEl.innerHTML = shown >= 0
-      ? `第 <b>${shown + 1}</b> / ${M.captions.length} 句 · <b>${fmt(tOrig)}</b>s`
+      ? `第 <b>${shown + 1}</b> 句 · 共 ${M.captions.length} 句 · <b>${fmt(tOrig)}</b>s`
       : `准备开始 · <b>${fmt(tOrig)}</b>s`;
   }
   if (shown !== cur) {
@@ -655,11 +664,14 @@ function tick(tMedia) {
   // stranger's mistakes onto it.
   const vw = (VERDICT && VERDICT.index === show)
     ? (VERDICT.per_word || VERDICT) : null;
+  const bk = new Set(breaksFor(show));
+  syncCueLive();
   cue.innerHTML = words.map((w, k) => {
     const v = vw && vw[k];
     const cls = 'w' + (k < lit ? ' on' : '')
       + (v && v.status !== 'ok' ? ' ' + v.status + ' verdict' : '');
-    return `<span class="${cls}">${escapeHtml(w)}</span>`;
+    const span = `<span class="${cls}">${escapeHtml(w)}</span>`;
+    return bk.has(k) ? span + ' <span class="brk">/</span>' : span;
   }).join(' ');
 }
 
@@ -740,6 +752,84 @@ function countLit(seg, n, tOrig) {
   return Math.max(0, Math.min(n, lit));
 }
 
+// ------------------------------------------------------------- phrase breaks
+// 换气点:句子显示区里的斜杠,标「这里该停一下」。
+//
+// 两个来源,都不是"按词数平均切":
+//   1) 字幕里的逗号/分号/冒号/破折号 —— 转录时说话人自己的断句;
+//   2) word_marks 里相邻两个词的起唱间隔 ≥0.70s —— 他真的停下来了。
+//      这份 word_marks 是 wordmarks.py 从音节核标出来的,和打高亮用的是同
+//      一份测量,所以"斜杠的地方"和"高亮卡住的地方"天然是同一处。
+//
+// 间隔那条要过三道过滤,不然会断出 "the / story" 这种短语中间的斜杠:
+//   斜杠两侧各至少 2 个词("And / I do this" 就是这么错出来的);
+//   不跨在功能词上("a / personality trait" 是前一个词没说完,不是换气);
+//   一句最多 2 处,且两处相隔至少 2 个词。
+// 标点断句不受这几条限制 —— "So, / let's …" 贴着句子开头是正常的。
+const BREAK_GAP = 0.70;              // 秒。实测词间隔中位数约 0.32
+const BRK_PUNCT = /[,;:—–]$/;
+// 停顿不会落在这类词**前面**:它们必须和后面的词连读
+const LEAD_STOP = new Set(('the a an of to in on at for with from by as ' +
+  'and but or that which who is are was were be been am ' +
+  'my your his her its our their this these those').split(' '));
+// 也不会紧跟在它们**后面**
+const TRAIL_STOP = new Set(('the a an of to in on at for with from by as ' +
+  'is are was were be been am my your his her its our their ' +
+  'this these those').split(' '));
+
+let BREAKS = null;    // BREAKS[i] = [k, …] 在这些词之后加斜杠
+
+const bareWord = w => w.toLowerCase().replace(/^[^a-z']+|[^a-z']+$/g, '');
+
+function computeBreaks(seg) {
+  const words = seg.text.split(/\s+/).filter(Boolean);
+  const n = words.length;
+  const marks = seg.word_marks;
+  const cand = [];
+  for (let k = 1; k < n; k++) {
+    // A closing quote or bracket belongs to the punctuation, not the word:
+    // "facts," and facts," must be judged the same way.
+    const prev = words[k - 1].replace(/["'”’)\]]+$/, '');
+    if (BRK_PUNCT.test(prev)) cand.push({ k, score: Infinity, punct: true });
+    else if (marks && marks.length === n) {
+      const gap = marks[k] - marks[k - 1];
+      if (gap >= BREAK_GAP) cand.push({ k, score: gap, punct: false });
+    }
+  }
+  // 间隔大的先占位,所以一句里只能留两处时留下的是最长的两次停顿
+  cand.sort((a, b) => b.score - a.score);
+  const take = [];
+  let gapBreaks = 0;
+  for (const c of cand) {
+    const edge = c.punct ? 1 : 2;
+    if (c.k < edge || n - c.k < edge) continue;
+    if (take.some(t => Math.abs(t - c.k) < 2)) continue;
+    if (!c.punct) {
+      if (gapBreaks >= 2) continue;
+      if (LEAD_STOP.has(bareWord(words[c.k]))) continue;
+      if (TRAIL_STOP.has(bareWord(words[c.k - 1]))) continue;
+      gapBreaks++;
+    }
+    take.push(c.k);
+  }
+  return take.sort((a, b) => a - b);
+}
+
+function breaksFor(i) {
+  if (!BREAKS) BREAKS = M.captions.map(computeBreaks);
+  return BREAKS[i] || [];
+}
+
+// 录音态把斜杠提亮。单独成函数是因为 tick() 只在时间前进时跑,而"按下录音"
+// 这件事发生在音频停住之后 —— 光靠 tick 的话,整个录音过程中 .live 都加不上。
+function syncCueLive() {
+  const cue = document.getElementById('cue');
+  if (cue) {
+    cue.classList.toggle('live',
+      micState === 'recording' || shadowState === 'recording');
+  }
+}
+
 // ---------------------------------------------------------------- shadowing
 // Records one take of the current sentence and asks the server how close it
 // was. There is no speech recognition: the server reduces both signals to
@@ -776,6 +866,7 @@ function setMicState(s) {
     scoring: '⏳ 评分中…',
   }[s];
   micBtn.disabled = (s === 'playing' || s === 'scoring');
+  syncCueLive();
 }
 
 // 显示屏上正在讲的那一句。
@@ -1278,6 +1369,7 @@ function setShadowState(s) {
     decoding: '⏳ 处理录音…',
     playing: '⏹ 停止左右耳回放',
   }[s] || '🎧 影子跟读';
+  syncCueLive();
 }
 
 // 任何别的播放路径都要先把影子回放收掉:分轨路由是全局的,留在左声道上的话
